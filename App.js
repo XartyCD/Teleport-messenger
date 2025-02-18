@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react"
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppContext, AppProvider } from './context/context.js';
 
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import 'react-native-gesture-handler';
+
+import * as Font from "expo-font";
 
 import InitLoadingScreen from "./screens/InitLoadingScreen.js";
 
@@ -25,10 +27,13 @@ export default function App() {
   return (
     <AppProvider>
       <NavigationContainer>
-        <StatusBar style="auto" />
-        <AppContent />
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'black', }}>
+          <StatusBar backgroundColor="black" barStyle="light-content" />
+          <AppContent />
+        </SafeAreaView>
+
       </NavigationContainer>
-    </AppProvider>
+    </AppProvider >
   );
 }
 
@@ -42,7 +47,19 @@ function AppContent() {
   const initializeApp = async () => {
     try {
       // Выполнение  асинхронной операции
-      await checkInternetConnection(true); // проверяет версию и инет
+      await checkInternetConnection(); // проверяет инет
+      await Font.loadAsync({
+        "ConcertOne-Regular": require("./assets/fonts/ConcertOne-Regular.ttf"),
+        "LondrinaSketch-Regular": require("./assets/fonts/LondrinaSketch-Regular.ttf"),
+        "Merienda-VariableFont_wght": require("./assets/fonts/Merienda-VariableFont_wght.ttf"),
+        "Pacifico-Regular": require("./assets/fonts/Pacifico-Regular.ttf"),
+
+        "Comfortaa-VariableFont_wght": require("./assets/fonts/Comfortaa-VariableFont_wght.ttf"),
+        "GreatVibes-Regular": require("./assets/fonts/GreatVibes-Regular.ttf"),
+        "Lobster-Regular": require("./assets/fonts/Lobster-Regular.ttf"),
+        "UbuntuCondensed-Regular": require("./assets/fonts/UbuntuCondensed-Regular.ttf"),
+      });
+
     } catch (error) {
       console.error("Ошибка инициализации:", error);
     } finally {
@@ -68,7 +85,7 @@ function AppContent() {
   return (
     <Stack.Navigator screenOptions={{
       headerShown: false,
-      cardStyle: { backgroundColor: 'white' }  // Устанавливаем фон для навигируемых страниц
+      cardStyle: { backgroundColor: 'black' }  // Устанавливаем фон для навигируемых страниц
     }}>
       {!user ? (
         <>

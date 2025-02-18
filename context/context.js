@@ -8,7 +8,6 @@ import io from 'socket.io-client';
 // Создаем контекст
 export const AppContext = createContext();
 
-
 export const AppProvider = ({ children }) => {
   const appVersion = "0.0.1"
   const [socket, setSocket] = useState("")
@@ -52,6 +51,25 @@ export const AppProvider = ({ children }) => {
     }
   }
 
+  // Функция на сохранение данных
+  const saveData = async (key, value) => {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(value))
+    } catch (e) {
+      // Обработка ошибок при сохранении данных
+      console.error("Failed to save data", e)
+    }
+  }
+
+  useEffect(() => {
+    if (user !== null) { // Проверяем, что `user` не `null`
+      saveData("user", user);
+    }
+    if (sessionId !== null) { // Проверяем, что `sessionId` не `null`
+      saveData("sessionId", sessionId);
+    }
+  }, [user])
+
 
 
   const loadData = async (key) => {
@@ -69,22 +87,29 @@ export const AppProvider = ({ children }) => {
 
 
   // Загрузить имя юзера при старте приложения (чтобы сразу перекидывать в аккаунт если имя в сторэдже)
-  React.useEffect(() => {
-    loadData('user').then(savedUser => {
-      if (savedUser) setUser(savedUser);
-    });
-    loadData('sessionId').then(savedSession => {
-      if (savedSession) setSessionId(savedSession);
-    });
+  useEffect(() => {
+    const loadUserData = async () => {
+      const savedUser = await loadData('user');
+      if (savedUser) {
+        setUser(savedUser);
+      }
+      const savedSession = await loadData('sessionId');
+      if (savedSession) {
+        setSessionId(savedSession);
+      }
+    };
+
+    loadUserData();
   }, []);
 
   // Проверка интернета (вынесено через контекст)
-  const checkInternetConnection = async (needCheckVersion = false) => {
+  const checkInternetConnection = async () => {
     const state = await NetInfo.fetch();
     if (state.isConnected) {
-      console.log("Проверка инета")
+      console.log("+ Инет")
       return true
     } else {
+      console.log("Инета нет")
       return false // По умолчанию инет false, версия не проверяется
     }
   };

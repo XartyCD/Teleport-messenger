@@ -75,25 +75,7 @@ app.post("/api/checkusers", (req, res) => {
     }
 
     if (results[0].count > 0) {
-      const checkSessionId =
-        "SELECT sessionId FROM users WHERE user = ?"
-      pool.query(checkSessionId, [checkedNewName], (error, results, fields) => {
-        if (error) {
-          console.error("Ошибка при смене статуса sessionId", error)
-          res.status(500).json({
-            success: false,
-            message: "Ошибка при смене статуса sessionId",
-          })
-          return
-        }
-
-        if (results[0].sessionId === "0") {
-          res.status(400).json({ success: "Ожидание ключа" }) // Пропуск как при обычной авторизации
-
-        } else {
-          res.status(200).json({ success: "already user" }) // Пропуск как при забытии аккаунта
-        }
-      })
+      res.status(200).json({ success: "already user" }) // Ник уже занят, это его аккаунт?
     } else {
       res.status(200).json({ success: true })
     }
@@ -103,38 +85,26 @@ app.post("/api/checkusers", (req, res) => {
 app.post("/api/register", (req, res) => {
   const { checkedNewName, secretKey, sessionId } = req.body;
 
-  const query = "SELECT COUNT(*) AS count FROM users WHERE user = ?";
-  pool.query(query, [checkedNewName], (error, results) => {
+  const getCurrentTimeFormatted = () =>
+    new Date().toISOString().replace("T", " ").slice(0, 19);
+  const currentTime = getCurrentTimeFormatted();
+
+  const getMaxIdQuery = "SELECT MAX(id) AS maxId FROM users";
+  pool.query(getMaxIdQuery, (error, results) => {
     if (error) {
-      console.error("Ошибка при выполнении запроса:", error);
-      return res.status(500).json({ success: false });
+      console.error("Ошибка при получении max(id):", error);
+      return res.status(500).json({ success: false, message: "Ошибка при получении ID" });
     }
 
-    if (results[0].count > 0) {
-      return res.status(400).json({ success: false, message: "Пользователь уже существует" });
-    }
+    const newId = (results[0].maxId || 0) + 1; // Если таблица пуста, id = 1
 
-    const getCurrentTimeFormatted = () =>
-      new Date().toISOString().replace("T", " ").slice(0, 19);
-    const currentTime = getCurrentTimeFormatted();
-
-    const getMaxIdQuery = "SELECT MAX(id) AS maxId FROM users";
-    pool.query(getMaxIdQuery, (error, results) => {
+    const insertQuery = "INSERT INTO users (id, user, password, sessionId, regTime) VALUES (?, ?, ?, ?, ?)";
+    pool.query(insertQuery, [newId, checkedNewName, secretKey, sessionId, currentTime], (error) => {
       if (error) {
-        console.error("Ошибка при получении max(id):", error);
-        return res.status(500).json({ success: false, message: "Ошибка при получении ID" });
+        console.error("Ошибка при добавлении пользователя:", error);
+        return res.status(500).json({ success: false, message: "Ошибка при записи пользователя" });
       }
-
-      const newId = (results[0].maxId || 0) + 1; // Если таблица пуста, id = 1
-
-      const insertQuery = "INSERT INTO users (id, user, password, sessionId, regTime) VALUES (?, ?, ?, ?, ?)";
-      pool.query(insertQuery, [newId, checkedNewName, secretKey, sessionId, currentTime], (error) => {
-        if (error) {
-          console.error("Ошибка при добавлении пользователя:", error);
-          return res.status(500).json({ success: false, message: "Ошибка при записи пользователя" });
-        }
-        res.status(201).json({ success: true, id: newId, message: "Пользователь зарегистрирован" });
-      });
+      res.status(201).json({ success: true, id: newId, message: "Пользователь зарегистрирован" });
     });
   });
 });
@@ -210,34 +180,22 @@ app.post("/api/firstdataload", (req, res) => {
 
 // API РЕГИСТРАЦИИ И АВТОРИЗАЦИИ
 
-// ВЫЙТИ ИЗ АККАУНТА
+// ВЫЙТИ ИЗ АККАУНТА +
 
 app.post("/api/leave-account", (req, res) => {
-  const { user, balance, countTap } = req.body
+  const { user } = req.body
+  // Заменить sessionId на 0
+  const leaveQuery = `UPDATE users SET sessionId = 0 WHERE user = ?`
 
-  const saveDataQuery = "UPDATE userRating SET balance = ?, countTap = ? WHERE user = ?"
-
-  pool.query(saveDataQuery, [balance, countTap, user], (error, results) => {
+  pool.query(leaveQuery, [user], (error, results) => {
     if (error) {
-      console.error("Ошибка при обновлении польз данных:", error)
-      res.status(500).json({ success: false, message: "Ошибка при обновлении данных польз" })
+      console.error("Ошибка при замене sessionId при выходе:", error)
+      res.status(500).json({ success: false, message: "Ошибка выхода" })
       return
     }
 
-    // Заменить sessionId на 0
-    const leaveQuery = `UPDATE regUsers SET sessionId = 0 WHERE user = ?`
-
-    pool.query(leaveQuery, [user], (error, results) => {
-      if (error) {
-        console.error("Ошибка при замене sessionId при выходе:", error)
-        res.status(500).json({ success: false, message: "Ошибка выхода" })
-        return
-      }
-
-      res.status(200).json({ success: true, message: "Успешный выход и сохранение данных в базе" })
-    })
-  }
-  )
+    res.status(200).json({ success: true, message: "Успешный выход" })
+  })
 })
 
 // API УДАЛЕНИЕ АККАУНТА
@@ -246,7 +204,7 @@ app.delete("/api/delete-account", (req, res) => {
   const { user } = req.body
 
   // Удалить пользователя
-  const deleteUserReg = "DELETE FROM regUsers WHERE user = ?"
+  const deleteUserReg = "DELETE FROM users WHERE user = ?"
   pool.query(deleteUserReg, [user], (error, results) => {
     if (error) {
       console.error("Ошибка при удалении userReg:", error)
@@ -283,57 +241,6 @@ app.post("/api/checksessionid", (req, res) => {
 
 //API ПРОВЕРКИ ЧТО УНИКАЛЬНЫЙ ID ВСЕ ЕЩЕ В БАЗЕ (ДЛЯ АВТОРИЗОВАННЫХ)
 
-
-// API ДЛЯ ВЫБРОСА ИЗ АККАУНТА
-
-app.post("/api/forgotaccount", (req, res) => {
-  const { username, key, sessionId } = req.body
-  const query = "SELECT secretKey FROM regUsers WHERE user = ?"
-
-  pool.query(query, [username], (error, results, fields) => {
-    if (error) {
-      console.error("Ошибка при выполнении запроса:", error)
-      res.status(500).json({ message: "Произошла ошибка при аутентификации" })
-      return
-    }
-
-    if (results.length === 1) {
-
-      if (key === results[0].secretKey) {
-        const updateSessionId = "UPDATE regUsers SET sessionId = ? WHERE user = ?"
-        pool.query(updateSessionId, [sessionId, username], (error, results, fields) => {
-          if (error) {
-            console.error("Ошибка при смене sessionId", error)
-            res.status(500).json({
-              success: false,
-              message: "Ошибка при смене sessionId",
-            })
-            return
-          }
-        })
-        res.status(200).json({ message: "Успешное восстановление", success: true })
-      } else {
-        res.status(200).json({ message: "Неверный ключ", success: true })
-      }
-    } else {
-      res.status(200).json({ message: "Пользователь не найден" })
-    }
-  })
-})
-
-// API ДЛЯ ВЫБРОСА ИЗ АККАУНТА
-
-
-// API РЕЙТИНГА
-
-
-// API РЕЙТИНГА
-
-// API ЧАТА
-
-
-
-// API ЧАТА
 
 
 // Маршрут для получения списка игр

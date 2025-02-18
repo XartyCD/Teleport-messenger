@@ -4,7 +4,7 @@ import { useAppContext } from '../context/context.js';
 
 
 
-export default ChatScreen = ( { navigation } ) => { 
+export default ChatScreen = ({ navigation }) => {
   const { checkInfoApp, CONNECTURL } = useAppContext();
 
 
@@ -24,13 +24,13 @@ export default ChatScreen = ( { navigation } ) => {
           'Content-Type': 'application/json',
         },
       });
-    
+
       const data = await response.json();
 
-      if (data.messages !== messages) { 
+      if (data.messages !== messages) {
         // Если массив сообщений изменился, обновляем state
         setMessages(data.messages);
-        
+
       }
 
     } catch (error) {
@@ -51,8 +51,8 @@ export default ChatScreen = ( { navigation } ) => {
           },
           body: JSON.stringify({ user, sendingMessage }),
         });
-  
-    
+
+
         const data = await response.json();
 
         if (!data.success) {
@@ -65,7 +65,7 @@ export default ChatScreen = ( { navigation } ) => {
           console.log('Сообщение успешно добавлено');
           console.log('Ответ сервера:', data);
         }
-    
+
       } catch (error) {
         console.error('Ошибка при отправке данных:', error);
       }
@@ -92,31 +92,31 @@ export default ChatScreen = ( { navigation } ) => {
     const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40; // 40 - допустимое отклонение для учета некоторых погрешностей
     setIsAtBottom(isAtBottom);
   }, []);
-  
+
   return (
     <View style={styles.mainWrapper}>
       <View style={styles.topPanel}>
-          <Text style={styles.chatName}>Чат сообщества</Text>
+        <Text style={styles.chatName}>Чат сообщества</Text>
       </View>
       <View style={styles.chatWrapper}>
         <ScrollView
-            ref={scrollViewRef}
-            onScroll={handleScroll}
-            scrollEventThrottle={16} // Устанавливаем частоту обновления скроллинга
-            onContentSizeChange={() => {
-              // Обновляем состояние, чтобы прокрутка происходила, если находимся внизу
-              if (isAtBottom && scrollViewRef.current) {
-                scrollViewRef.current.scrollToEnd({ animated: true });
-              }
-            }}
-          >
+          ref={scrollViewRef}
+          onScroll={handleScroll}
+          scrollEventThrottle={16} // Устанавливаем частоту обновления скроллинга
+          onContentSizeChange={() => {
+            // Обновляем состояние, чтобы прокрутка происходила, если находимся внизу
+            if (isAtBottom && scrollViewRef.current) {
+              scrollViewRef.current.scrollToEnd({ animated: true });
+            }
+          }}
+        >
           {Array.isArray(messages) && messages.length > 0 ? (
             messages.map((message, index) => (
               <View key={index} style={styles.messageBlock}>
                 {message.user === user ? (
                   <Text style={styles.messageYouUser}>{message.user}</Text>
                 ) : (
-                  <Text style={styles.messageUser}>{message.user}</Text> 
+                  <Text style={styles.messageUser}>{message.user}</Text>
                 )}
                 <Text style={styles.messageText}>{message.message}</Text>
                 <Text style={styles.messageTime}>{new Date(message.time).toLocaleString()}</Text>
@@ -130,29 +130,29 @@ export default ChatScreen = ( { navigation } ) => {
       <View style={styles.inputChatWrapper}>
         <View style={styles.inputWrapper}>
           <TextInput
-              style={styles.inputChat}
-              placeholder="Сообщение"
-              onChangeText={e => setSendingMessage(e)}
-              value={sendingMessage}
-              onSubmitEditing={sendMessage}
+            style={styles.inputChat}
+            placeholder="Сообщение"
+            onChangeText={e => setSendingMessage(e)}
+            value={sendingMessage}
+            onSubmitEditing={sendMessage}
           />
         </View>
-      <View>
-        <Pressable
+        <View>
+          <Pressable
             style={
-            styles.sendButton
+              styles.sendButton
             }
             onPress={sendMessage}
-            ><Image
-            source={require('../assets/images/sendIcon.png')}
-            style={{
-              width: 33,
-              height: 33,
-            }}
-            resizeMode="cover"
-          />
-        </Pressable>
-      </View>
+          ><Image
+              source={require('../assets/images/sendIcon.png')}
+              style={{
+                width: 33,
+                height: 33,
+              }}
+              resizeMode="cover"
+            />
+          </Pressable>
+        </View>
       </View>
     </View>
   )
@@ -162,7 +162,7 @@ export default ChatScreen = ( { navigation } ) => {
 const styles = StyleSheet.create({
   mainWrapper: {
     marginTop: 48.9,
-    marginBottom: 20, 
+    marginBottom: 20,
     flexDirection: "column"
   },
   topPanel: {
@@ -247,5 +247,5 @@ const styles = StyleSheet.create({
   sendButton: {
     width: "100%"
   }
-  
+
 })
