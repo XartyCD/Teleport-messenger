@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react"
-import { View, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppContext, AppProvider } from './context/context.js';
@@ -20,18 +19,13 @@ import MainChatsScreen from "./screens/MainChatsScreen.js";
 import UserProfileScreen from "./screens/UserProfileScreen.js";
 import ChatScreen from "./screens/ChatScreen.js";
 
-
 const Stack = createStackNavigator();
 
 export default function App() {
   return (
     <AppProvider>
       <NavigationContainer>
-        <SafeAreaView style={{ flex: 1, backgroundColor: 'black', }}>
-          <StatusBar backgroundColor="black" barStyle="light-content" />
-          <AppContent />
-        </SafeAreaView>
-
+        <AppContent />
       </NavigationContainer>
     </AppProvider >
   );
@@ -41,7 +35,6 @@ function AppContent() {
   const { user, checkInternetConnection } = useAppContext(); // используем контекст внутри компонента AppContent
   const [isLoading, setIsLoading] = useState(true);
   console.log("App")
-
 
   // Запуск всего важного при старте приложения
   const initializeApp = async () => {
@@ -76,31 +69,26 @@ function AppContent() {
     initializeApp()
   }, []);
 
-  if (isLoading) {
-    return (
-      <InitLoadingScreen /> // Отдельный экран загрузки
-    );
-  }
 
   return (
-    <Stack.Navigator screenOptions={{
-      headerShown: false,
-      cardStyle: { backgroundColor: 'black' }  // Устанавливаем фон для навигируемых страниц
-    }}>
-      {!user ? (
-        <>
-          <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
-          <Stack.Screen name="LoginScreen" component={LoginScreen} />
-          <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
-        </>
-      ) : (
-        <>
-          <Stack.Screen name="MainChatsScreen" component={MainChatsScreen} />
-          <Stack.Screen name="UserProfileScreen" component={UserProfileScreen} />
-          <Stack.Screen name="ChatScreen" component={ChatScreen} />
-        </>
-      )}
-
-    </Stack.Navigator>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "black" }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isLoading ? (
+          <Stack.Screen name="InitLoadingScreen" component={InitLoadingScreen} />
+        ) : !user ? (
+          <>
+            <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
+            <Stack.Screen name="LoginScreen" component={LoginScreen} />
+            <Stack.Screen name="ForgotPasswordScreen" component={ForgotPasswordScreen} />
+          </>
+        ) : (
+          <>
+            <Stack.Screen name="MainChatsScreen" component={MainChatsScreen} />
+            <Stack.Screen name="UserProfileScreen" component={UserProfileScreen} />
+            <Stack.Screen name="ChatScreen" component={ChatScreen} />
+          </>
+        )}
+      </Stack.Navigator >
+    </SafeAreaView >
   );
-}
+}  

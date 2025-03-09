@@ -64,13 +64,14 @@ const AnimatedNotification = ({ message, trigger }) => {
 const styles = StyleSheet.create({
   warningContainer: {
     position: "absolute",
-    top: 70,
+    top: 30,
     left: 20,
     right: 20,
     padding: 8,
     backgroundColor: "rgba(255, 0, 0, 0.5)",
     borderRadius: 10,
     alignItems: "center",
+    zIndex: 9999
   },
   warnSetNickname: {
     color: "white",

@@ -1,251 +1,175 @@
-import { Platform, StyleSheet, TextInput, ScrollView, Text, View, Pressable, Image, Alert } from 'react-native';
-import React, { useState, useEffect, useContext, useRef, useCallback } from 'react';
-import { useAppContext } from '../context/context.js';
+import React, { useState, useEffect } from "react";
+import { View, Text, Pressable, StyleSheet, Image, Modal, Animated, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
+export default function ChatScreen({ navigation, route }) {
+  const { chatName } = route.params;
 
-export default ChatScreen = ({ navigation }) => {
-  const { checkInfoApp, CONNECTURL } = useAppContext();
+  const [backgroundImage, setBackgroundImage] = useState(null);
+
+  const [isMenuVisible, setIsMenuVisible] = useState(false); // Для управления видимостью меню
+
+  const toggleMenu = () => {
+    setIsMenuVisible(!isMenuVisible);
+  };
+
+  const hideMenu = () => {
+    setIsMenuVisible(false);
+  };
 
 
-  const { user, setUser } = useAppContext();
-  const [sendWarn, setsendWarn] = useState("");
-  const [sendingMessage, setSendingMessage] = useState(null);
-  const [messages, setMessages] = useState([]); // Состояние для хранения сообщений
-  const scrollViewRef = useRef()
-  const [isAtBottom, setIsAtBottom] = useState(true);
-
-
-  const globalChatUpdate = async () => {
+  const pickImage = async () => { // Кастомная смена обоев
     try {
-      const response = await fetch(`${CONNECTURL}/getmessagesglobalchat`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      // Запрашиваем разрешение на доступ к фото
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access the media library is required!');
+        return;
+      }
+
+      // Запускаем выбор изображения
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType, // Обратите внимание на MediaTypeOptions
+        allowsEditing: true,
+        aspect: [3, 4],  // Масштаб кропа
+        quality: 1,
       });
 
-      const data = await response.json();
+      if (!result.canceled) {
+        const selectedImageUri = result.assets[0].uri;
+        setBackgroundImage(selectedImageUri);
 
-      if (data.messages !== messages) {
-        // Если массив сообщений изменился, обновляем state
-        setMessages(data.messages);
-
+        // Сохраняем выбранное изображение в AsyncStorage
+        await AsyncStorage.setItem(`backgroundImage_${chatName}`, selectedImageUri);
       }
-
     } catch (error) {
-      console.error('Ошибка при получения сообщений:', error);
+      console.error("Ошибка при выборе изображения:", error);
     }
-  }
+    hideMenu() // скрытие меню действий
+  };
 
-  const sendMessage = async () => {
-    if (sendingMessage === "" || sendingMessage === "." || sendingMessage.length >= 120) {
-      setnameWarn("Такое здесь не одобряют")
+  const resetBackgroundImage = async () => {    // Сброс фона на стандартный серый цвет
+    setBackgroundImage(null);
+    await AsyncStorage.removeItem(`backgroundImage_${chatName}`); // Удаляем сохраненное изображение
 
-    } else {
+    hideMenu()
+  };
+
+  useEffect(() => {
+    const loadBackgroundImage = async () => {
       try {
-        const response = await fetch(`${CONNECTURL}/sendmessageglobalchat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ user, sendingMessage }),
-        });
-
-
-        const data = await response.json();
-
-        if (!data.success) {
-          throw new Error(data.message);
+        const storedImageUri = await AsyncStorage.getItem(`backgroundImage_${chatName}`);
+        if (storedImageUri) {
+          setBackgroundImage(storedImageUri);
         }
-
-        else {
-          globalChatUpdate()
-          setSendingMessage("")
-          console.log('Сообщение успешно добавлено');
-          console.log('Ответ сервера:', data);
-        }
-
       } catch (error) {
-        console.error('Ошибка при отправке данных:', error);
+        console.error("Ошибка при загрузке фона:", error);
       }
-    }
-  }
+    };
 
+    loadBackgroundImage();
+  }, [chatName]);
 
-  useEffect(() => {
-    globalChatUpdate(); // Запрос на обновление сообщений при первом входе
-    const intervalId = setInterval(globalChatUpdate, 2300); // Обновление сообщений каждые 2.3 секунды
-
-    return () => clearInterval(intervalId); // Очищаем интервал при размонтировании компонента
-  }, []);
-
-  useEffect(() => {
-    if (isAtBottom) {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }
-  }, [messages, isAtBottom]);
-
-  // Функция для проверки, находится ли ScrollView внизу
-  const handleScroll = useCallback((event) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40; // 40 - допустимое отклонение для учета некоторых погрешностей
-    setIsAtBottom(isAtBottom);
-  }, []);
 
   return (
-    <View style={styles.mainWrapper}>
-      <View style={styles.topPanel}>
-        <Text style={styles.chatName}>Чат сообщества</Text>
-      </View>
-      <View style={styles.chatWrapper}>
-        <ScrollView
-          ref={scrollViewRef}
-          onScroll={handleScroll}
-          scrollEventThrottle={16} // Устанавливаем частоту обновления скроллинга
-          onContentSizeChange={() => {
-            // Обновляем состояние, чтобы прокрутка происходила, если находимся внизу
-            if (isAtBottom && scrollViewRef.current) {
-              scrollViewRef.current.scrollToEnd({ animated: true });
-            }
-          }}
-        >
-          {Array.isArray(messages) && messages.length > 0 ? (
-            messages.map((message, index) => (
-              <View key={index} style={styles.messageBlock}>
-                {message.user === user ? (
-                  <Text style={styles.messageYouUser}>{message.user}</Text>
-                ) : (
-                  <Text style={styles.messageUser}>{message.user}</Text>
-                )}
-                <Text style={styles.messageText}>{message.message}</Text>
-                <Text style={styles.messageTime}>{new Date(message.time).toLocaleString()}</Text>
-              </View>
-            ))
-          ) : (
-            <Text>No messages available</Text> // Сообщение, если сообщений нет
-          )}
-        </ScrollView>
-      </View>
-      <View style={styles.inputChatWrapper}>
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.inputChat}
-            placeholder="Сообщение"
-            onChangeText={e => setSendingMessage(e)}
-            value={sendingMessage}
-            onSubmitEditing={sendMessage}
-          />
-        </View>
-        <View>
-          <Pressable
-            style={
-              styles.sendButton
-            }
-            onPress={sendMessage}
-          ><Image
-              source={require('../assets/images/sendIcon.png')}
-              style={{
-                width: 33,
-                height: 33,
-              }}
-              resizeMode="cover"
-            />
+    <TouchableWithoutFeedback onPress={hideMenu}>
+      <View style={[styles.container, { backgroundColor: backgroundImage ? "transparent" : "#1e1e1e" }]}>
+        {backgroundImage && (
+          <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} />
+        )}
+        <View style={styles.topPanel}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={26} color="white" />
+          </Pressable>
+          <Text style={styles.chatName}>{chatName}</Text>
+          <Pressable onPress={toggleMenu}>
+            <Ionicons name="ellipsis-vertical" size={26} color="white" />
           </Pressable>
         </View>
-      </View>
-    </View>
-  )
-};
 
+        {/* Модальное меню */}
+        {isMenuVisible && (
+
+          <TouchableWithoutFeedback onPress={hideMenu}>
+            <View style={styles.menuContainer}>
+              <TouchableWithoutFeedback>
+                <View style={styles.menu}>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => console.log("Поиск")}>
+                    <Ionicons name="search-outline" size={20} color="white" />
+                    <Text style={styles.menuItemText}>Поиск</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={pickImage}>
+                    <Ionicons name="images-outline" size={20} color="white" />
+                    <Text style={styles.menuItemText}>Сменить обои</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={resetBackgroundImage}>
+                    <Ionicons name="refresh-outline" size={20} color="white" />
+                    <Text style={styles.menuItemText}>Сбросить обои</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => console.log("Очистить чат")}>
+                    <Ionicons name="warning-outline" size={20} color="white" />
+                    <Text style={styles.menuItemText}>Очистить чат</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => console.log("Заблокировать")}>
+                    <Ionicons name="hand-left-outline" size={20} color="white" />
+                    <Text style={styles.menuItemText}>Заблокировать</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        )}
+
+        <View style={styles.chatWrapper}>
+          <Text style={{ color: "white", textAlign: "center", marginTop: 20 }}>
+            Здесь будут сообщения с {chatName}
+          </Text>
+        </View>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+}
 
 const styles = StyleSheet.create({
-  mainWrapper: {
-    marginTop: 48.9,
-    marginBottom: 20,
-    flexDirection: "column"
-  },
+  container: { flex: 1, backgroundColor: "#1e1e1e" },
   topPanel: {
-    backgroundColor: "#6d95b3cd",
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20
-  },
-  chatName: {
-    fontSize: 21,
-    color: "white"
-  },
-
-  chatWrapper: {
-    backgroundColor: "#ecebffcd",
-    height: "85%",
-    width: "100%",
-  },
-
-  messageBlock: {
-    backgroundColor: '#e0e0e0',
-    paddingTop: 8,
-    paddingBottom: 15,
-    paddingHorizontal: 10,
-    borderRadius: 11,
-    marginTop: 11,
-    marginBottom: 7,
-    marginHorizontal: 12,
-    width: "auto",
-    maxWidth: 450,
-    height: "auto",
-
-  },
-
-  messageYouUser: {
-    fontWeight: 'bold',
-    color: "#948b38cd",
-    fontSize: 20
-  },
-
-  messageUser: {
-    fontWeight: 'bold',
-    color: "#4f4f4fcd",
-    fontSize: 17
-  },
-  messageText: {
-    marginTop: 5,
-  },
-  messageTime: {
-    marginTop: 8.8,
-    fontSize: 12,
-    color: '#555',
-    textAlign: 'right',
-  },
-
-  inputChatWrapper: {
     justifyContent: "space-between",
-    maxWidth: "100%",
-    flexDirection: 'row',
-    alignItems: "center",
-    textAlign: "center",
-    marginTop: 5,
-    marginHorizontal: 2
+    backgroundColor: "#222",
+    padding: 15,
   },
-
-  inputWrapper: {
-    width: "91%",
-    borderWidth: 2,       // Толщина рамки
-    borderColor: '#545454db',   // Цвет рамки
-    borderStyle: 'solid', // Тип рамки
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+  chatName: { color: "white", fontSize: 18, fontWeight: "bold" },
+  chatWrapper: { flex: 1, padding: 20 },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject, // Заставляем картинку занять весь экран
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover", // Картинка будет покрывать весь экран
   },
-
-
-  inputChat: {
-    fontSize: 20,
-    maxWidth: "100vw"
+  menuContainer: {
+    position: "absolute",
+    top: 57,
+    right: 10,
+    zIndex: 10,
   },
-
-  sendButton: {
-    width: "100%"
-  }
-
-})
+  menu: {
+    backgroundColor: "#2A2E34",
+    borderRadius: 6,
+    padding: 8,
+    elevation: 10, // тень для визуала
+  },
+  menuItem: {
+    flexDirection: "row",
+    gap: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  menuItemText: {
+    color: "white",
+    fontSize: 16,
+  },
+});

@@ -18,6 +18,15 @@ export const AppProvider = ({ children }) => {
 
   const [user, setUser] = useState(null);
   const [sessionId, setSessionId] = useState(null);
+
+  const [userChats, setUserChats] = useState([ // Получаем этот массив при рендере MainChatScreen, выставить ограничение на отправку запросов
+    { id: "1", name: "Алиса", lastMessage: "Привет! Как дела?" },
+    { id: "2", name: "Борис", lastMessage: "Завтра встречаемся?" },
+    { id: "3", name: "Света", lastMessage: "Отправила тебе фото 📸" },
+    { id: "4", name: "Евгений", lastMessage: "Пошли в бар?" },
+    { id: "5", name: "Жека", lastMessage: "Поедешь в Сочи?" },
+    { id: "6", name: "Диана", lastMessage: "Что ты делал вчера?" },
+  ]);
   console.log("Auth")
 
 
@@ -115,7 +124,7 @@ export const AppProvider = ({ children }) => {
   };
 
   return (
-    <AppContext.Provider value={{ getAllDataFromAsyncStorage, appVersion, user, setUser, sessionId, setSessionId, checkInternetConnection, socket, createSocket, CONNECTURL }}>
+    <AppContext.Provider value={{ getAllDataFromAsyncStorage, appVersion, user, setUser, sessionId, setSessionId, checkInternetConnection, socket, createSocket, userChats, setUserChats, CONNECTURL }}>
       {children}
     </AppContext.Provider>
   );
