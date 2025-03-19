@@ -8,7 +8,7 @@ const { width, height } = Dimensions.get("window");
 import { useAppContext } from "../context/context.js"
 
 export default MainSettingsMenu = ({ isVisible, toggleSettingsMenu }) => {
-  const { user, setUser, setSessionId, checkInternetConnection, CONNECTURL } = useAppContext()
+  const { user, setUser, setUserId, setSessionId, checkInternetConnection, CONNECTURL } = useAppContext()
   const translateX = useRef(new Animated.Value(-width)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -51,6 +51,7 @@ export default MainSettingsMenu = ({ isVisible, toggleSettingsMenu }) => {
 
           // Сбрасываем состояния
           setUser(null)
+          setUserId(null)
           setSessionId(null)
 
           // Удаляем данные из AsyncStorage

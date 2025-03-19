@@ -18,7 +18,6 @@ const io = socketIo(server, {
 })
 
 const pool = mysql.createPool({
-
   connectionLimit: 100, // Устанавливаем лимит соединений ;
   host: "localhost",
   user: "root",
@@ -40,7 +39,7 @@ app.use((req, res, next) => {
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  ) // Указать заголовки
+  )
   next()
 })
 
@@ -55,6 +54,192 @@ pool.getConnection((err, connection) => {
   connection.release()
 })
 
+
+const activeUsers = new Map(); // user -> socketId
+
+io.on("connection", (socket) => {
+  console.log("Новый пользователь подключился");
+
+  // Регистрация пользователя
+  socket.on("addUserSocket", (user_id) => {
+    activeUsers.set(user_id, socket.id);
+    console.log(`Пользователь ${user_id} зарегистрирован: ${socket.id}`);
+    console.log(activeUsers)
+  });
+
+  socket.on("getAllUsers", (userId) => {
+    const query = "SELECT id, user FROM users WHERE id != ?"; // Исключаем пользователя, который делает запрос
+
+    pool.query(query, [userId], (err, results) => {
+      if (err) {
+        console.error("Ошибка получения пользователей:", err);
+        return;
+      }
+      console.log("Запрос..")
+      socket.emit("allUsers", results); // Отправляем список пользователей клиенту
+    });
+  });
+
+  socket.on("sendMessage", (message) => {
+    const { chatId, sender_id, sendingMessage } = message;
+
+    // Сначала получаем receiver_id
+    const getReceiverQuery = `
+      SELECT CASE 
+        WHEN sender_id = ? THEN receiver_id 
+        ELSE sender_id 
+      END AS receiver_id
+      FROM messagesList 
+      WHERE chat_id = ? 
+      LIMIT 1;
+    `;
+
+    pool.query(getReceiverQuery, [sender_id, chatId], (err, result) => {
+      if (err) {
+        console.error("Ошибка при получении receiver_id:", err);
+        return;
+      }
+
+      if (result.length === 0) {
+        console.error("Ошибка: Не найден receiver_id для чата", chatId);
+        return;
+      }
+
+      const receiver_id = result[0].receiver_id;
+      console.log("Определён receiver_id:", receiver_id);
+
+      // Теперь вставляем сообщение
+      const insertMessageQuery = `
+      INSERT INTO messagesList (chat_id, message_chat_id, sender_id, receiver_id, content, date, status)
+        SELECT ?, COALESCE(MAX(message_chat_id), 0) + 1, ?, ?, ?, NOW(), 'sent'
+      FROM messagesList WHERE chat_id = ?;
+  `;
+
+      pool.query(insertMessageQuery, [chatId, sender_id, receiver_id, sendingMessage, chatId], (err) => {
+        if (err) {
+          console.error("Ошибка при сохранении сообщения:", err);
+          return;
+        }
+
+        console.log("Сообщение успешно отправлено!");
+
+        // Отправляем сообщение получателю через WebSocket
+        const receiverSocketId = activeUsers.get(receiver_id);
+        if (!receiverSocketId) {
+          console.log("Получатель не в сети.");
+          return;
+        }
+
+        io.to(receiverSocketId).emit("getNewMessage", {
+          chat_id: chatId,
+          sender_id,
+          receiver_id,
+          content: sendingMessage,
+          date: new Date().toLocaleString("ru-RU", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          status: "sent",
+        });
+      });
+    });
+  })
+
+
+
+
+
+
+  // Слушаем событие "getMessages" от клиента
+  socket.on("getMessages", (user_id) => {
+    console.log(`Запрос на все сообщения для пользователя с id: ${user_id}`);
+
+    // SQL-запрос для получения всех сообщений, принадлежащих пользователю
+    const messagesQuery = `
+        SELECT 
+            m.chat_id, 
+            m.message_chat_id, 
+            m.content, 
+            DATE_FORMAT(m.date, '%d.%m.%Y, %H:%i:%s') AS date, 
+            m.sender_id, 
+            m.receiver_id, 
+            m.status,
+            u1.user AS sender_name, 
+            u2.user AS receiver_name
+        FROM messagesList m
+        LEFT JOIN users u1 ON m.sender_id = u1.id
+        LEFT JOIN users u2 ON m.receiver_id = u2.id
+        WHERE m.sender_id = ? OR m.receiver_id = ?
+        ORDER BY m.chat_id, m.message_chat_id;
+    `;
+
+    pool.query(messagesQuery, [user_id, user_id], (err, results) => {
+      if (err) {
+        console.error("Ошибка при запросе сообщений:", err);
+        socket.emit("error", "Ошибка получения сообщений");
+        return;
+      }
+
+      if (results.length > 0) {
+        // Группируем сообщения по chat_id
+        const groupedMessages = results.reduce((acc, row) => {
+          const { chat_id, message_chat_id, content, date, sender_id, receiver_id, sender_name, receiver_name, status } = row;
+
+          // Определяем имя собеседника
+          const companionName = user_id === sender_id ? receiver_name : sender_name;
+
+          // Если чат ещё не добавлен в список, создаём его
+          if (!acc[chat_id]) {
+            acc[chat_id] = {
+              chat_id,
+              receiver_name: companionName,
+              messages: [],
+            };
+          }
+
+          // Добавляем сообщение в массив сообщений чата
+          acc[chat_id].messages.push({
+            message_chat_id,
+            content,
+            date,
+            sender_id,
+            receiver_id,
+            status,
+          });
+
+          return acc;
+        }, {});
+
+        // Преобразуем объект в массив
+        const formattedMessages = Object.values(groupedMessages);
+
+        console.log("Отформатированные сообщения:", JSON.stringify(formattedMessages, null, 2));
+
+        // Отправляем сообщения клиенту
+        socket.emit("allMessages", formattedMessages);
+      } else {
+        console.log("Нет сообщений для этого пользователя");
+        socket.emit("allMessages", []);
+      }
+    });
+  });
+
+  // Закрытие соединения
+  socket.on("disconnect", () => {
+    console.log("Пользователь отключился");
+  });
+});
+
+
+
+
+
+
+
 app.get("/api/getrealtime", (req, res) => {
   const currentTime = Date.now()
 
@@ -63,7 +248,6 @@ app.get("/api/getrealtime", (req, res) => {
 })
 
 // API РЕГИСТРАЦИИ И АВТОРИЗАЦИИ
-
 app.post("/api/checkusers", (req, res) => {
   const { checkedNewName } = req.body
   const query = "SELECT COUNT(*) AS count FROM users WHERE user =?"
@@ -181,7 +365,6 @@ app.post("/api/firstdataload", (req, res) => {
 // API РЕГИСТРАЦИИ И АВТОРИЗАЦИИ
 
 // ВЫЙТИ ИЗ АККАУНТА +
-
 app.post("/api/leave-account", (req, res) => {
   const { user } = req.body
   // Заменить sessionId на 0
@@ -199,7 +382,6 @@ app.post("/api/leave-account", (req, res) => {
 })
 
 // API УДАЛЕНИЕ АККАУНТА
-
 app.delete("/api/delete-account", (req, res) => {
   const { user } = req.body
 

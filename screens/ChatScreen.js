@@ -1,16 +1,86 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet, Image, Modal, Animated, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { ScrollView, View, Text, TextInput, Pressable, StyleSheet, Image, Modal, Animated, TouchableOpacity, TouchableWithoutFeedback } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import AnimatedNotification from "../components/AnimatedNotification.js";
+import { useAppContext } from "../context/context.js"
+
 
 export default function ChatScreen({ navigation, route }) {
-  const { chatName } = route.params;
+  const { chatId, chatName } = route.params;
+
+  const [notification, setNotification] = useState("");
+  const [notificationTrigger, setNotificationTrigger] = useState(0);
+
+  const { user, userId, messages, checkInternetConnection, socket } = useAppContext()
+  const [chatMessages, setChatMessages] = useState([]);
 
   const [backgroundImage, setBackgroundImage] = useState(null);
-
   const [isMenuVisible, setIsMenuVisible] = useState(false); // Для управления видимостью меню
+
+  const scrollViewRef = useRef()
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const [sendingMessage, setSendingMessage] = useState(null);
+
+
+  console.log("chat", user)
+
+  useEffect(() => {
+    // Фильтруем сообщения для конкретного чата по chat_id
+    const filteredMessages = messages.find(chat => chat.chat_id === chatId)?.messages || [];
+    setChatMessages(filteredMessages);
+  }, [messages, chatName]);
+
+  const showNotification = (msg) => {
+    setNotification(msg);
+    setNotificationTrigger((prev) => prev + 1); // Меняем `trigger`, чтобы обновить компонент
+  };
+
+
+  const sendMessage = async () => {
+    if (sendingMessage.length >= 150) {
+      showNotification("Сообщение слишком длинное!")
+    } else {
+      if (checkInternetConnection()) {
+        if (socket) {
+          if (chatMessages.length !== 0) {  // если чат уже есть
+            const messageImage = {
+              chatId,
+              sender_id: userId,
+              sendingMessage,
+            };
+
+            console.log("Отправка сообщения:", messageImage);
+            socket.emit("sendMessage", messageImage);
+          } else { // если отправляемое сообщение первое и чата раньше небыло
+            const messageImage = {
+              sender: userId,
+              sendingMessage,
+              receiver: chatName
+            };
+
+            console.log("Отправка первого сообщения:", messageImage);
+            socket.emit("sendMessage", messageImage);
+          }
+          setSendingMessage("")
+        }
+      } else {
+        showNotification("Нет подключения к интернету!")
+      }
+    }
+  }
+
+
+  // Функция для проверки, находится ли ScrollView внизу
+  const handleScroll = useCallback((event) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const isAtBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 40; // 40 - допустимое отклонение для учета некоторых погрешностей
+    setIsAtBottom(isAtBottom);
+  }, []);
+
 
   const toggleMenu = () => {
     setIsMenuVisible(!isMenuVisible);
@@ -77,6 +147,7 @@ export default function ChatScreen({ navigation, route }) {
   return (
     <TouchableWithoutFeedback onPress={hideMenu}>
       <View style={[styles.container, { backgroundColor: backgroundImage ? "transparent" : "#1e1e1e" }]}>
+        {notification && (<AnimatedNotification message={notification} trigger={notificationTrigger} />)}
         {backgroundImage && (
           <Image source={{ uri: backgroundImage }} style={styles.backgroundImage} />
         )}
@@ -123,10 +194,32 @@ export default function ChatScreen({ navigation, route }) {
           </TouchableWithoutFeedback>
         )}
 
-        <View style={styles.chatWrapper}>
-          <Text style={{ color: "white", textAlign: "center", marginTop: 20 }}>
-            Здесь будут сообщения с {chatName}
-          </Text>
+        <ScrollView ref={scrollViewRef} style={styles.messagesContainer}>
+          {chatMessages.map((msg, index) => (
+            <View key={index} style={[styles.message, msg.sender_id === userId ? styles.myMessage : styles.otherMessage]}>
+              <Text style={styles.messageText}>{msg.content}</Text>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Ввод сообщения */}
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={sendingMessage}
+            onChangeText={setSendingMessage}
+            placeholder="Введите сообщение..."
+            placeholderTextColor="#999"
+          />
+          {sendingMessage ? (
+            <Pressable onPress={sendMessage} style={styles.sendButton}>
+              <Ionicons name="send" size={22} color="white" />
+            </Pressable>
+          ) : (
+            <></>
+          )}
+
         </View>
       </View>
     </TouchableWithoutFeedback>
@@ -143,7 +236,6 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   chatName: { color: "white", fontSize: 18, fontWeight: "bold" },
-  chatWrapper: { flex: 1, padding: 20 },
   backgroundImage: {
     ...StyleSheet.absoluteFillObject, // Заставляем картинку занять весь экран
     width: "100%",
@@ -172,4 +264,13 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
   },
+
+  messagesContainer: { flex: 1, padding: 10 },
+  message: { maxWidth: "80%", padding: 10, borderRadius: 10, marginVertical: 5 },
+  myMessage: { alignSelf: "flex-end", backgroundColor: "#007AFF" },
+  otherMessage: { alignSelf: "flex-start", backgroundColor: "#444" },
+  messageText: { color: "white" },
+  inputContainer: { flexDirection: "row", alignItems: "center", padding: 10, backgroundColor: "#333" },
+  input: { flex: 1, color: "white", padding: 10, borderRadius: 5, backgroundColor: "#444" },
+  sendButton: { padding: 10 },
 });

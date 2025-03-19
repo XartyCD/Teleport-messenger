@@ -24,7 +24,7 @@ export default RegisterScreen = ({ navigation }) => {
   const [isModalGeneratedVisible, setIsModalGeneratedVisible] = useState(false);
   const [isModalAskAccountVisible, setIsModalAskAccountVisible] = useState(false);
 
-  const { getAllDataFromAsyncStorage, setUser, setSessionId, appVersion, checkInternetConnection, CONNECTURL } = useAppContext()
+  const { getAllDataFromAsyncStorage, setUser, setUserId, setSessionId, appVersion, checkInternetConnection, CONNECTURL } = useAppContext()
   const [checkedNewName, setCheckedNewName] = useState("") // состояние для некнейма с лицевой страницы
 
   const [createKey, setCreateKey] = useState(null) // требуется вввод пароля при новой регистрации? (если ник не занят)
@@ -181,7 +181,7 @@ export default RegisterScreen = ({ navigation }) => {
     return generatedSessionId
   }
 
-  // Проверка ключа при регистрации/при авторизации
+  // Проверка ключа при регистрации
   const checkInputedKey = async (secretKey) => {
     console.log(secretKey)
     const connected = await checkInternetConnection()
@@ -208,6 +208,7 @@ export default RegisterScreen = ({ navigation }) => {
           } else {
             // Пропускаем в аккаунт
             setUser(checkedNewName) // Записываем валидное введенное имя в состояние
+            setUserId(data.id)
             setSessionId(generatedSessionId)
             getAllDataFromAsyncStorage()
           }

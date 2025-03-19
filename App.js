@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppContext, AppProvider } from './context/context.js';
+import { useWebSocketContext, WebSocketProvider } from './context/websocketcontext.js';
 
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -24,9 +25,11 @@ const Stack = createStackNavigator();
 export default function App() {
   return (
     <AppProvider>
-      <NavigationContainer>
-        <AppContent />
-      </NavigationContainer>
+      <WebSocketProvider>
+        <NavigationContainer>
+          <AppContent />
+        </NavigationContainer>
+      </WebSocketProvider>
     </AppProvider >
   );
 }

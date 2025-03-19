@@ -18,6 +18,7 @@ import { Image } from "expo-image";
 
 import { useAppContext } from "../context/context.js"
 
+import SearchScreen from "./SearchScreen.js";
 import MainSettingsMenu from "../components/MainSettingsMenu.js";
 
 export default MainChatScreen = ({ navigation }) => {
@@ -28,9 +29,14 @@ export default MainChatScreen = ({ navigation }) => {
   const [noChatsGif, setNoChatsGif] = useState(null);
   const noChatsGifRef = useRef(null); // useRef для GIF
 
-  const { getAllDataFromAsyncStorage, user, setUser, setSessionId, checkInternetConnection, userChats, setUserChats, CONNECTURL } = useAppContext()
+  const { getAllDataFromAsyncStorage, checkInternetConnection, socket, userChats, CONNECTURL } = useAppContext()
 
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const toggleSearchPage = () => {
+    setIsSearchOpen(!isSearchOpen);
+  };
 
   const toggleSettingsMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -47,6 +53,11 @@ export default MainChatScreen = ({ navigation }) => {
     }
   }, [userChats]);
 
+  if (isSearchOpen) {
+    return <SearchScreen isVisible={isSearchOpen} toggleSearchPage={toggleSearchPage} />
+  }
+
+
 
 
   return (
@@ -61,7 +72,7 @@ export default MainChatScreen = ({ navigation }) => {
           <Ionicons name={isMenuOpen ? "close" : "menu"} size={30} color="white" />
         </Pressable>
 
-        <Pressable style={styles.searchButton} onPress={() => console.log(2)}>
+        <Pressable style={styles.searchButton} onPress={toggleSearchPage}>
           <Ionicons name={"search"} size={30} color="white" />
         </Pressable>
       </View>
@@ -69,13 +80,19 @@ export default MainChatScreen = ({ navigation }) => {
       <ScrollView style={styles.mainWrapper}>
         {userChats.length > 0 ? (
           userChats.map((chat) => (
-            <Pressable key={chat.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatId: chat.id, chatName: chat.name })}>
+            <Pressable key={chat.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatId: chat.id, chatName: chat.receiver_name })}>
               <View style={styles.chatAvatar}>
-                <Text style={styles.avatarText}>{chat.name[0]}</Text>
+                <Text style={styles.avatarText}>{chat.receiver_name[0]}</Text>
               </View>
               <View style={styles.chatInfo}>
-                <Text style={styles.chatName}>{chat.name}</Text>
-                <Text style={styles.lastMessage}>{chat.lastMessage}</Text>
+                <View style={styles.chatMainInfo}>
+                  <Text style={styles.chatName}>{chat.receiver_name}</Text>
+                  <Text style={styles.lastMessage}>{chat.lastMessage}</Text>
+                </View>
+                <View style={styles.chatOptionalInfo}>
+                  <Text style={styles.date}>{chat.lastMessageDate}</Text>
+                  <Text style={styles.unreadText}>2</Text>
+                </View>
               </View>
             </Pressable>
           ))
@@ -204,15 +221,46 @@ const styles = StyleSheet.create({
     color: "#ddd", // Светло-серый текст в аватаре
   },
   chatInfo: {
-    flex: 1,
+    flexDirection: 'row', // Горизонтальное расположение для основного и дополнительного блока
+    justifyContent: 'space-between', // Расстояние между элементами (чтобы элементы были на разных концах)
+    flex: 1,  // Для того чтобы блок занимал все доступное пространство
+    marginLeft: 3,
+  },
+  chatMainInfo: {
+    flex: 1,  // Основная информация занимает весь оставшийся пространство
   },
   chatName: {
+    fontWeight: 'bold',
+    color: "white",
     fontSize: 16,
-    fontWeight: "bold",
-    color: "#f5f5f5", // Почти белый текст
   },
   lastMessage: {
     fontSize: 14,
-    color: "#a0a0a0", // Серый текст для последнего сообщения
+    color: '#888',
   },
+  chatOptionalInfo: {
+    alignItems: 'flex-end',  // Элементы выравниваем по правому краю
+  },
+  date: {
+    fontSize: 12,
+    color: '#888',
+  },
+  status: {
+    fontSize: 12,
+    color: '#888',
+  },
+
+  unreadBadge: {
+    backgroundColor: "red",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  unreadText: {
+    color: "white",
+    fontWeight: "bold",
+  },
+
 });
