@@ -17,6 +17,7 @@ import { LinearGradient } from "expo-linear-gradient"
 import { Image } from "expo-image";
 
 import { useAppContext } from "../context/context.js"
+import { useWebSocketContext } from "../context/websocketcontext.js"
 
 import SearchScreen from "./SearchScreen.js";
 import MainSettingsMenu from "../components/MainSettingsMenu.js";
@@ -29,7 +30,8 @@ export default MainChatScreen = ({ navigation }) => {
   const [noChatsGif, setNoChatsGif] = useState(null);
   const noChatsGifRef = useRef(null); // useRef для GIF
 
-  const { getAllDataFromAsyncStorage, checkInternetConnection, socket, userChats, CONNECTURL } = useAppContext()
+  const { getAllDataFromAsyncStorage, checkInternetConnection, CONNECTURL } = useAppContext()
+  const { socket, userChats } = useWebSocketContext()
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -56,8 +58,6 @@ export default MainChatScreen = ({ navigation }) => {
   if (isSearchOpen) {
     return <SearchScreen isVisible={isSearchOpen} toggleSearchPage={toggleSearchPage} />
   }
-
-
 
 
   return (

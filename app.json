@@ -19,7 +19,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.x1arty1.Teleport"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -30,6 +31,11 @@
     "assetBundlePatterns": [
       "**/*",
       "assets/fonts/*"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "12eaaca0-f030-4a27-8a46-4ff20030f009"
+      }
+    }
   }
 }

@@ -5,18 +5,55 @@ import {
   Text,
   View,
   Pressable,
-  Image,
   Alert,
 } from "react-native"
 import React, { useState, useContext, useEffect, useRef } from "react"
+import { Audio } from "expo-av";
+import { Image, ImageBackground } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+
 import { useAppContext } from "../context/context.js"
+
+import AnimatedNotification from "../components/AnimatedNotification.js";
 
 export default LoginScreen = ({ navigation, route }) => {
   const { checkedNewName } = route.params || {}; // Деструктурируем параметры при navigate
-  const { setUser, setSessionId, checkInternetConnection, CONNECTURL } = useAppContext()
 
-  const [nameWarn, setnameWarn] = useState("хэ") // варн вверху экрана
+  const [notification, setNotification] = useState("");
+  const [notificationTrigger, setNotificationTrigger] = useState(0);
+
+  const [sound, setSound] = useState();
+  const [error, setError] = useState(false); // состояние для ошибки
+  const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
+
+
+  const ERROR_SOUND = require('../assets/sounds/errorLogin.wav');
+  const SUCCESS_SOUND = require('../assets/sounds/successLogin.wav');
+
+
+  const { setUser, setSessionId, setUserId, checkInternetConnection, CONNECTURL } = useAppContext()
+
   const [inputedKey, setInputedKey] = useState()
+
+
+  const showNotification = (msg) => {
+    setNotification(msg);
+    setNotificationTrigger((prev) => prev + 1); // Меняем `trigger`, чтобы обновить компонент
+  };
+
+
+  // Функция для воспроизведения звука
+  const playSound = async (soundFile) => {
+    const { sound } = await Audio.Sound.createAsync(soundFile, { shouldPlay: true });
+    setSound(sound);
+
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.didJustFinish) {
+        sound.unloadAsync(); // Освобождаем ресурсы после окончания воспроизведения
+      }
+    });
+  };
 
 
   // Генерация случайного session id
@@ -43,9 +80,9 @@ export default LoginScreen = ({ navigation, route }) => {
     const connected = await checkInternetConnection()
     if (connected) {
       if (inputedKey.length <= 10) {
-        setnameWarn("Слишком короткий! (от 10-х)")
+        showNotification("Слишком короткий! (от 10-и)")
       } else if (inputedKey.length > 50) {
-        setnameWarn("Слишком длинный (до 50-ти)")
+        showNotification("Слишком длинный (до 50-ти)")
       } else {
         const generatedSessionId = await createUniqueSessionId() // Создаем sessionId
 
@@ -69,20 +106,35 @@ export default LoginScreen = ({ navigation, route }) => {
           }
 
           if (data.message === "Неверный ключ") {
-            // Прописать бан при неправильном ключе !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            alert("Неверный ключ")
+            showNotification("Неверный ключ");
+            setError(true); // Устанавливаем ошибку
+            playSound(ERROR_SOUND);
+            setTimeout(() => {
+              setError(false); // Скрываем GIF через 3 секунды
+            }, 900);
 
           } else if (data.message === "Аккаунт уже используется") {
-            alert("Аккаунт уже используется")
+            showNotification("Аккаунт уже используется")
 
           } else if (data.message === "Перегенерировать сессию") {
             checkInputedKey() // повторный вызов если ключ вдруг совпал
 
           } else {
-            // Пропускаем при правильном ключе
-            console.log("Вход:")
-            setUser(checkedNewName) // Записываем валидное введенное имя в состояние
-            setSessionId(generatedSessionId)
+            playSound(SUCCESS_SOUND);
+            setSuccessModalVisible(true);
+
+            setTimeout(() => {
+              // Пропускаем при правильном ключе
+              setSuccessModalVisible(false);
+
+              console.log("Вход:")
+              setUser(checkedNewName);
+              setSessionId(generatedSessionId);
+              setUserId(data.id);
+            }, 1750);
+
+
+
           }
         } catch (error) {
           console.error("Ошибка при отправке данных:", error)
@@ -90,61 +142,207 @@ export default LoginScreen = ({ navigation, route }) => {
 
       }
     } else {
-      setnameWarn("Нет подключения к интернету!")
+      showNotification("Нет подключения к интернету!")
     }
   }
 
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text style={styles.warnSetNickname}>{nameWarn}</Text>
-      <>
-        <Pressable
-          style={styles.topButton}
-          onPress={() => navigation.navigate("RegisterScreen")} // Возврат на главную при аутентификации
-        >
-          <Text>Вернуться назад</Text>
-        </Pressable>
+    <>
+      {isSuccessModalVisible && (
+        <View style={styles.successOverlay}>
+          <View style={styles.successBackground} />
+          <Image
+            source={require("../assets/gifs/successLogin.gif")}
+            style={styles.successGif}
+            contentFit="cover"
+          />
+        </View>
+      )}
 
-        <Text>Введите ключ от аккаунта {checkedNewName} для авторизации.</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Секретный ключ"
-          // Обновляем состояние при изменении текста
-          onChangeText={(e) => setInputedKey(e)}
-        // Привязка значения к input
-        />
-        <Pressable
-          style={styles.topButton}
-          onPress={() => checkInputedKey()}
+      <ImageBackground
+        source={require('../assets/images/loginScreenBack.jpg')} // Замените на ваш URL изображения
+        style={{
+          flex: 1, // Растягивает изображение на весь экран
+          color: "white",
+        }}
+      >
+        <LinearGradient
+          colors={['rgba(0, 0, 0, 0.8)', 'rgba(0, 0, 0, 0.02)', 'rgba(0, 0, 0, 0.02)', 'rgba(0, 0, 0, 0.1)', 'rgba(0, 0, 0, 0.5)']}
+          style={{
+            position: 'absolute', // Абсолютное позиционирование для наложения градиента
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
         >
-          <Text>Продолжить</Text>
-        </Pressable>
-      </>
-    </View>
+
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AnimatedNotification message={notification} trigger={notificationTrigger} />
+            <>
+
+              <Pressable onPress={() => navigation.navigate("RegisterScreen")} style={styles.buttonBack}>
+                <View style={styles.contentbackbtn}>
+                  <Ionicons name={"chevron-back-outline"} size={24} color="white" />
+                  <Text style={styles.backtext}>Войти в другой аккаунт</Text>
+                </View>
+              </Pressable>
+
+
+              {error ? (
+                <Image
+                  source={require("../assets/gifs/wrongPassword.gif")}
+                  style={{
+                    width: 80,
+                    height: 80,
+                  }}
+                  contentFit="cover"
+                />
+              ) : (
+                <Image
+                  source={require("../assets/images/stateLocker.png")} // Здесь указываем обычное изображение
+                  style={{
+                    width: 80,
+                    height: 80,
+                  }}
+                  contentFit="cover"
+                />
+              )}
+              <Text style={styles.infoInputKeyText}>Введите ключ от аккаунта {checkedNewName} для авторизации.</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Секретный ключ"
+                placeholderTextColor="#fff"
+                // Обновляем состояние при изменении текста
+                onChangeText={(e) => setInputedKey(e)}
+                value={inputedKey}
+              // Привязка значения к input
+              />
+              <View style={styles.continueButton}>
+                <LinearGradient
+                  colors={["rgb(4, 125, 130)", "rgb(103, 9, 192)"]}
+                  start={[0, 0]}
+                  end={[1, 1]}
+                  style={styles.btnGradientBorder}
+                >
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.btn,
+                      pressed && styles.btnPressed
+                    ]}
+                    onPress={() => checkInputedKey()}
+                  >
+                    <Text style={styles.btnText}>Войти</Text>
+                  </Pressable>
+                </LinearGradient>
+              </View>
+            </>
+          </View>
+        </LinearGradient>
+      </ImageBackground >
+    </>
   )
 }
 
 const styles = StyleSheet.create({
-  warnSetNickname: {
-    padding: 4,
-    backgroundColor: "#ff4f4fdb",
+  contentbackbtn: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backtext: {
+    color: 'white',
+    fontSize: 16
+  },
+  buttonBack: {
+    borderColor: "grey",
+    borderWidth: 1.4,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 13,
+    marginBottom: 70,
+    position: "absolute",
+    top: 95,
+    left: 10
+
+  },
+
+  infoInputKeyText: {
+    color: 'white',
+    fontFamily: 'UbuntuCondensed-Regular',
+    fontSize: 20,
+    textAlign: "center",
+    marginTop: 30
+  },
+  input: {
+    width: "70%",
+    height: 50,
+    borderBottomWidth: 2, // Только нижняя граница
+    borderBottomColor: "#6200ee", // Цвет границы
+    paddingHorizontal: 10,
+    fontSize: 18,
+    backgroundColor: "transparent", // Прозрачный фон
+    marginVertical: 7,
     color: "white",
-    fontSize: 16,
   },
-  topButton: {
-    padding: 10,
-    backgroundColor: "#c7c7c7d2",
-    borderRadius: 30,
+
+  // Кнопка "Войти"
+  btnGradientBorder: {
+    padding: 2.2,
+    borderRadius: 10,
   },
-  version: {
-    margin: 100,
-    fontSize: 14,
-    color: "#e307b3",
+  btn: {
+    backgroundColor: "#141414dd",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 5,
   },
+  btnText: {
+    fontSize: 22,
+    color: "#fff",
+    textAlign: "center",
+
+    fontFamily: "UbuntuCondensed-Regular",
+  },
+  btnPressed: {
+    backgroundColor: "#333",
+  },
+  continueButton: {
+    width: "40%",
+    marginTop: 40,
+    marginBottom: 40
+  },
+
+
+  successOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10, // Поверх остального контента
+  },
+  successBackground: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.9)", // Затемненный фон
+  },
+
+  successGif: {
+    position: "absolute",
+    top: 210,
+    width: 250,
+    height: 250,
+  },
+
 })

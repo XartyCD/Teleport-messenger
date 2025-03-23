@@ -1,35 +1,73 @@
 const express = require("express")
 const mysql = require("mysql")
 
-const http = require("http")
-const socketIo = require("socket.io")
-
 const app = express()
 const port = 9000
 const socketPort = 9003
 
-const server = http.createServer(app)
+// // ЛОКАЛ 
+// const http = require("http") // http
+// const socketIo = require("socket.io") // sockets
+// // ЛОКАЛ 
 
-// Настраиваем Socket.IO
-const io = socketIo(server, {
+// // ЛОКАЛ - - - - - 
+// const server = http.createServer(app)
+
+// // Настраиваем Socket.IO
+// const io = socketIo(server, {
+//   cors: {
+//     origin: "*", // Обеспечиваем доступ с любых источников, важно для работы с клиентом
+//   },
+// })
+
+
+// const pool = mysql.createPool({
+//   connectionLimit: 100, // Устанавливаем лимит соединений
+//   host: "localhost", // Укажи IP-адрес удаленного сервера или домен
+//   user: "root",          // Имя пользователя
+//   password: "", // Пароль пользователя
+//   database: "TeleportBase",  // Имя базы данных
+// });
+// // ЛОКАЛ - - - - - 
+
+
+
+
+// СЕРВЕР
+const https = require("https"); // https connect
+const fs = require("fs"); // чтение SSL сервером
+const { Server } = require("socket.io"); // sockets for connect
+// СЕРВЕР
+
+// ДЛЯ СЕРВЕРА - - - - - - - - -
+
+const server = https.createServer({
+  key: fs.readFileSync("/etc/ssl/xarty.ru/certificate.key"),
+  cert: fs.readFileSync("/etc/ssl/xarty.ru/certificate.crt"),
+  ca: fs.readFileSync("/etc/ssl/xarty.ru/certificate_ca.crt"),
+}, app);
+
+const io = new Server(server, {
   cors: {
-    origin: "*", // Обеспечиваем доступ с любых источников, важно для работы с клиентом
-  },
-})
+    origin: "https://xarty.ru",
+    methods: ["GET", "POST"],
+    transports: ["websocket"], // Указываем, что мы будем использовать WebSocket
+  }
+});
 
 const pool = mysql.createPool({
-  connectionLimit: 100, // Устанавливаем лимит соединений ;
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "TeleportBase",
-})
+  connectionLimit: 100, // Устанавливаем лимит соединений
+  host: "localhost", // Укажи IP-адрес удаленного сервера или домен
+  user: "root",          // Имя пользователя
+  password: "", // Пароль пользователя
+  database: "TeleportBase",  // Имя базы данных
+});
 
-// app.use(express.static(path.join(__dirname, 'public')));
+// ДЛЯ СЕРВЕРА - - - - - - - - -
 
-// app.get('*', (req, res) => {
-//   res.sendFile(path.join(__dirname, 'public', 'index.html'));
-// });
+
+
+
 
 app.use(express.json())
 
@@ -81,70 +119,44 @@ io.on("connection", (socket) => {
   });
 
   socket.on("sendMessage", (message) => {
-    const { chatId, sender_id, sendingMessage } = message;
+    const { chatId, sender_id, receiver_id, sendingMessage } = message;
 
-    // Сначала получаем receiver_id
-    const getReceiverQuery = `
-      SELECT CASE 
-        WHEN sender_id = ? THEN receiver_id 
-        ELSE sender_id 
-      END AS receiver_id
-      FROM messagesList 
-      WHERE chat_id = ? 
-      LIMIT 1;
-    `;
-
-    pool.query(getReceiverQuery, [sender_id, chatId], (err, result) => {
-      if (err) {
-        console.error("Ошибка при получении receiver_id:", err);
-        return;
-      }
-
-      if (result.length === 0) {
-        console.error("Ошибка: Не найден receiver_id для чата", chatId);
-        return;
-      }
-
-      const receiver_id = result[0].receiver_id;
-      console.log("Определён receiver_id:", receiver_id);
-
-      // Теперь вставляем сообщение
-      const insertMessageQuery = `
+    // Теперь вставляем сообщение
+    const insertMessageQuery = `
       INSERT INTO messagesList (chat_id, message_chat_id, sender_id, receiver_id, content, date, status)
         SELECT ?, COALESCE(MAX(message_chat_id), 0) + 1, ?, ?, ?, NOW(), 'sent'
       FROM messagesList WHERE chat_id = ?;
   `;
 
-      pool.query(insertMessageQuery, [chatId, sender_id, receiver_id, sendingMessage, chatId], (err) => {
-        if (err) {
-          console.error("Ошибка при сохранении сообщения:", err);
-          return;
-        }
+    pool.query(insertMessageQuery, [chatId, sender_id, receiver_id, sendingMessage, chatId], (err) => {
+      if (err) {
+        console.error("Ошибка при сохранении сообщения:", err);
+        return;
+      }
 
-        console.log("Сообщение успешно отправлено!");
+      console.log("Сообщение успешно отправлено!");
 
-        // Отправляем сообщение получателю через WebSocket
-        const receiverSocketId = activeUsers.get(receiver_id);
-        if (!receiverSocketId) {
-          console.log("Получатель не в сети.");
-          return;
-        }
+      // Отправляем сообщение получателю через WebSocket
+      const receiverSocketId = activeUsers.get(receiver_id);
+      if (!receiverSocketId) {
+        console.log("Получатель не в сети.");
+        return;
+      }
 
-        io.to(receiverSocketId).emit("getNewMessage", {
-          chat_id: chatId,
-          sender_id,
-          receiver_id,
-          content: sendingMessage,
-          date: new Date().toLocaleString("ru-RU", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          }),
-          status: "sent",
-        });
+      io.to(receiverSocketId).emit("getNewMessage", {
+        chat_id: chatId,
+        sender_id,
+        receiver_id,
+        content: sendingMessage,
+        date: new Date().toLocaleString("ru-RU", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+        status: "sent",
       });
     });
   })
@@ -230,7 +242,12 @@ io.on("connection", (socket) => {
 
   // Закрытие соединения
   socket.on("disconnect", () => {
-    console.log("Пользователь отключился");
+    activeUsers.forEach((socketId, userId) => {
+      if (socketId === socket.id) {
+        activeUsers.delete(userId);
+        console.log(`Пользователь ${userId} отключился`);
+      }
+    })
   });
 });
 
@@ -296,7 +313,7 @@ app.post("/api/register", (req, res) => {
 
 app.post("/api/confirmsecretkey", (req, res) => {
   const { username, key, sessionId } = req.body
-  const query = "SELECT password, sessionId FROM users WHERE BINARY user = ?"
+  const query = "SELECT id, password, sessionId FROM users WHERE BINARY user = ?"
 
   pool.query(query, [username], (error, results, fields) => {
     if (error) {
@@ -307,7 +324,7 @@ app.post("/api/confirmsecretkey", (req, res) => {
 
     if (results.length === 1) {
 
-      if (key === results[0].secretKey) {
+      if (key === results[0].password) {
         if (results[0].sessionId === "0") {
           const updateSessionId =
             "UPDATE users SET sessionId = ? WHERE user = ?"
@@ -321,7 +338,7 @@ app.post("/api/confirmsecretkey", (req, res) => {
               return
             }
           })
-          res.status(200).json({ message: "Успешная авторизация", success: true })
+          res.status(200).json({ id: results[0].id, message: "Успешная авторизация", success: true })
 
         } else if (results[0].sessionId === sessionId) {
           res.status(200).json({ message: "Перегенерировать сессию", success: true })

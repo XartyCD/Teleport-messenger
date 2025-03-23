@@ -12,6 +12,7 @@ import React, { useState, useContext, useEffect, useRef } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard"
+import { Ionicons } from "@expo/vector-icons";
 
 import { useAppContext } from "../context/context.js"
 import AnimatedNotification from "../components/AnimatedNotification.js";
@@ -273,7 +274,11 @@ export default RegisterScreen = ({ navigation }) => {
               message={`${checkedNewName} — ваш аккаунт?`}
               options={[
                 { text: "Нет", onPress: () => setIsModalAskAccountVisible(false) },
-                { text: "Да", onPress: () => openLogin() },
+                {
+                  text: "Да", onPress: () => {
+                    openLogin()
+                  }
+                },
               ]}
             />
 
@@ -295,28 +300,46 @@ export default RegisterScreen = ({ navigation }) => {
 
             {createKey ? (
               <>
-                <Pressable
-                  style={styles.topButton}
-                  onPress={() => setCreateKey(false)} // Возврат на главную при регистрации
-                >
-                  <Text>Вернуться назад</Text>
-                </Pressable>
+                <View style={styles.createKeyWrapper}>
+                  <Pressable onPress={() => setCreateKey(false)} style={styles.buttonBack}>
+                    <View style={styles.contentbackbtn}>
+                      <Ionicons name={"chevron-back-outline"} size={30} color="white" />
+                      <Text style={styles.backtext}>Вернуться назад</Text>
+                    </View>
+                  </Pressable>
 
-                <Text>Создайте ключ для аккаунта {checkedNewName}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Секретный ключ"
-                  // Обновляем состояние при изменении текста
-                  onChangeText={(e) => setSecretKey(e)}
-                // Привязка значения к input
-                />
-                <Pressable
-                  style={styles.topButton}
-                  onPress={() => checkInputedKey(secretKey)}
-                >
-                  <Text>Продолжить</Text>
-                </Pressable>
+                  <Text style={styles.infoCreateKeyText}>Создайте ключ для аккаунта</Text>
+                  <Text style={styles.infoCreateKeyAccount}>{checkedNewName}</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Секретный ключ"
+                    placeholderTextColor="#fff"
+                    // Обновляем состояние при изменении текста
+                    onChangeText={(e) => setSecretKey(e)}
+                    value={secretKey}
+                  // Привязка значения к input
+                  />
+                  <View style={styles.continueButton}>
+                    <LinearGradient
+                      colors={["rgb(4, 125, 130)", "rgb(103, 9, 192)"]}
+                      start={[0, 0]}
+                      end={[1, 1]}
+                      style={styles.btnGradientBorder}
+                    >
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.btn,
+                          pressed && styles.btnPressed
+                        ]}
+                        onPress={() => checkInputedKey(secretKey)}
+                      >
+                        <Text style={styles.btnText} >Сохранить</Text>
+                      </Pressable>
+                    </LinearGradient>
+                  </View>
+                </View>
               </>
+
             ) : (
               <>
                 <View style={styles.infoTextWrapper}>
@@ -395,6 +418,15 @@ const styles = StyleSheet.create({
     marginTop: 80,
     marginBottom: 40
   },
+
+  createKeyWrapper: {
+    width: "100%",
+    marginTop: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 80,
+    marginBottom: 40
+  },
   textRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -403,6 +435,36 @@ const styles = StyleSheet.create({
     color: 'white',
     fontFamily: 'Lobster-Regular',
     fontSize: 26,
+  },
+  infoCreateKeyText: {
+    color: 'white',
+    fontFamily: 'UbuntuCondensed-Regular',
+    fontSize: 20,
+    textAlign: "center",
+  },
+
+  infoCreateKeyAccount: {
+    color: 'white',
+    fontFamily: 'Merienda-VariableFont_wght',
+    fontSize: 22,
+    textAlign: "center",
+    marginBottom: 20
+  },
+  contentbackbtn: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backtext: {
+    color: 'white',
+  },
+  buttonBack: {
+    borderColor: "grey",
+    borderWidth: 2,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginBottom: 70,
+
   },
   topButton: {
     padding: 10,

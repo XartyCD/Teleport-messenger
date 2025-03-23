@@ -6,7 +6,7 @@ export default function InitLoadingScreen() {
   const [loadingText, setLoadingText] = useState("Загрузка приложения")
   const [loadingTextDots, setLoadingTextDots] = useState('.'); // состояние для точек
 
-  const backgroundImagesArray = [require("../assets/images/appLoading_var1.png"), require("../assets/images/appLoading_var2.png")]
+  const backgroundImagesArray = [require("../assets/images/appLoading_var1.jpg"), require("../assets/images/appLoading_var2.jpg")]
 
   const [backgroundImageLoad, setBackgroundImageLoad] = useState(null);
 

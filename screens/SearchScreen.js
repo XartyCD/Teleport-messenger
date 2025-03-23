@@ -18,6 +18,7 @@ import { Image } from "expo-image";
 import { useNavigation } from "@react-navigation/native";
 
 import { useAppContext } from "../context/context.js"
+import { useWebSocketContext } from "../context/websocketcontext.js"
 
 
 export default SearchScreen = ({ isVisible, toggleSearchPage }) => {
@@ -30,9 +31,9 @@ export default SearchScreen = ({ isVisible, toggleSearchPage }) => {
   const [noChatsGif, setNoChatsGif] = useState(null);
   const noChatsGifRef = useRef(null); // useRef для GIF
 
-  const { getAllDataFromAsyncStorage, checkInternetConnection, socket, userId, userChats, CONNECTURL } = useAppContext()
+  const { getAllDataFromAsyncStorage, checkInternetConnection, userId, CONNECTURL } = useAppContext()
+  const { socket, users, userChats } = useWebSocketContext()
 
-  const [users, setUsers] = useState("");
   const [searchText, setSearchText] = useState("");
 
   const hasRendered = useRef(false); // Хук для проверки первого рендера
@@ -41,31 +42,6 @@ export default SearchScreen = ({ isVisible, toggleSearchPage }) => {
   const handleClose = () => {
     toggleSearchPage(); // Закрытие поиска
   };
-
-  useEffect(() => {
-    // Выполняем запрос только если еще не делали его (при первом открытии)
-    if (!hasRendered.current) {
-      const fetchUsers = () => {
-        socket.emit("getAllUsers", userId); // Отправляем запрос на сервер, чтобы получить всех пользователей
-      };
-
-      // Слушаем события WebSocket
-      socket.on("allUsers", (data) => {
-        setUsers(data); // Когда получаем пользователей, сохраняем их в состоянии
-      });
-
-      // Запрашиваем пользователей при первом рендере
-      fetchUsers();
-      hasRendered.current = true; // Устанавливаем флаг, чтобы больше не запрашивать данные
-
-      return () => {
-        socket.off("allUsers"); // Очистка события, если компонент будет размонтирован
-      };
-    }
-  }, []);
-
-
-
 
 
   return (
@@ -98,7 +74,7 @@ export default SearchScreen = ({ isVisible, toggleSearchPage }) => {
                   people.user.toLowerCase().startsWith(searchText.toLowerCase())
                 )
                 .map((people) => (
-                  <Pressable key={people.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatName: people.user })}>
+                  <Pressable key={people.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatName: people.user, chatId: people.id })}>
                     <View style={styles.chatAvatar}>
                       <Text style={styles.avatarText}>{people.user[0]}</Text>
                     </View>

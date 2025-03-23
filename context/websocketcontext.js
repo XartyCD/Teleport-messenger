@@ -16,6 +16,8 @@ export const WebSocketProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [newMessages, setNewMessages] = useState([]);
 
+  const [users, setUsers] = useState("");
+
 
   // Используем useRef для хранения WebSocket-соединения
   const socketRef = useRef(null);
@@ -29,10 +31,24 @@ export const WebSocketProvider = ({ children }) => {
   useEffect(() => {
     if (userId && !socketRef.current) {
       console.log("Создание WebSocket-соединения...");
-      socketRef.current = Platform.OS === 'ios' ? io('http://localhost:9003') : io('http://10.0.2.2:9003');
+
+      // ЛОКАЛКА
+      // socketRef.current = Platform.OS === 'ios' ? io('ws://localhost:9003') : io('ws://10.0.2.2:9003');
+      // ЛОКАЛКА
+
+      // ДЛЯ СЕРВЕРА
+      socketRef.current = io("wss://xarty.ru", {
+        transports: ["websocket"],
+      });
+      // ДЛЯ СЕРВЕРА
+
+
 
       socketRef.current.on("connect", () => {
         socketRef.current.emit("addUserSocket", userId);
+      });
+      socketRef.current.on("connect_error", (error) => {
+        console.error("Ошибка подключения WebSocket:", error);
       });
 
       socketRef.current.on("disconnect", () => {
@@ -46,6 +62,12 @@ export const WebSocketProvider = ({ children }) => {
 
         // После получения сообщений, обновим состояние чатов
         updateUserChats(data);
+      });
+
+      socketRef.current.on("allUsers", (data) => {
+        console.log("Юзеры:", data);
+        setUsers(data); // Когда получаем пользователей, сохраняем их в состоянии
+
       });
 
       // Получение новых сообщений
@@ -130,10 +152,17 @@ export const WebSocketProvider = ({ children }) => {
       socketRef.current.emit("getMessages", userId);
     }
   };
+  const fetchUsers = () => {
+    if (userId && socketRef.current) {
+      console.log("Запрашиваем юзеров...");
+      socketRef.current.emit("getAllUsers", userId);
+    }
+  };
 
   // запрос сообщений
   useEffect(() => {
     if (userId) {
+      fetchUsers()
       fetchMessages(); // Запрос при монтировании
     }
   }, [userId]);
@@ -186,7 +215,7 @@ export const WebSocketProvider = ({ children }) => {
 
 
   return (
-    <WebSocketContext.Provider value={{ userChats, setUserChats, messages, socket: socketRef.current }}>
+    <WebSocketContext.Provider value={{ users, userChats, setUserChats, messages, socket: socketRef.current }}>
       {children}
     </WebSocketContext.Provider>
   );

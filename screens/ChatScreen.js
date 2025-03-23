@@ -5,7 +5,9 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import AnimatedNotification from "../components/AnimatedNotification.js";
+
 import { useAppContext } from "../context/context.js"
+import { useWebSocketContext } from "../context/websocketcontext.js"
 
 
 export default function ChatScreen({ navigation, route }) {
@@ -14,7 +16,9 @@ export default function ChatScreen({ navigation, route }) {
   const [notification, setNotification] = useState("");
   const [notificationTrigger, setNotificationTrigger] = useState(0);
 
-  const { user, userId, messages, checkInternetConnection, socket } = useAppContext()
+  const { user, userId, checkInternetConnection } = useAppContext()
+  const { socket, messages } = useWebSocketContext()
+
   const [chatMessages, setChatMessages] = useState([]);
 
   const [backgroundImage, setBackgroundImage] = useState(null);
@@ -32,6 +36,8 @@ export default function ChatScreen({ navigation, route }) {
     // Фильтруем сообщения для конкретного чата по chat_id
     const filteredMessages = messages.find(chat => chat.chat_id === chatId)?.messages || [];
     setChatMessages(filteredMessages);
+    console.log('chat', filteredMessages);
+
   }, [messages, chatName]);
 
   const showNotification = (msg) => {
@@ -63,7 +69,7 @@ export default function ChatScreen({ navigation, route }) {
             };
 
             console.log("Отправка первого сообщения:", messageImage);
-            socket.emit("sendMessage", messageImage);
+            socket.emit("sendFirstMessage", messageImage);
           }
           setSendingMessage("")
         }
