@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useNavigation } from "@react-navigation/native";
 import { Text, Animated, StyleSheet, Dimensions, Pressable, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -8,6 +9,7 @@ const { width, height } = Dimensions.get("window");
 import { useAppContext } from "../context/context.js"
 
 export default MainSettingsMenu = ({ isVisible, toggleSettingsMenu }) => {
+  const navigation = useNavigation(); // Получаем навигацию
   const { user, setUser, setUserId, setSessionId, checkInternetConnection, CONNECTURL } = useAppContext()
   const translateX = useRef(new Animated.Value(-width)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -78,7 +80,7 @@ export default MainSettingsMenu = ({ isVisible, toggleSettingsMenu }) => {
       {/* Меню */}
       <Animated.View style={[styles.menuContainer, { transform: [{ translateX }] }]}>
         <View style={styles.listItems}>
-          <Pressable style={styles.menuItem} onPress={() => console.log("Меню пункт 1")}>
+          <Pressable style={styles.menuItem} onPress={() => navigation.navigate("UserProfileScreen")}>
             <Ionicons name="wallet-outline" size={24} color="white" />
             <Text style={styles.menuItemText}>Профиль</Text>
           </Pressable>

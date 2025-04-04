@@ -80,7 +80,7 @@ export default MainChatScreen = ({ navigation }) => {
       <ScrollView style={styles.mainWrapper}>
         {userChats.length > 0 ? (
           userChats.map((chat) => (
-            <Pressable key={chat.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatId: chat.id, chatName: chat.receiver_name })}>
+            <Pressable key={chat.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatReceiverId: chat.id, chatName: chat.receiver_name })}>
               <View style={styles.chatAvatar}>
                 <Text style={styles.avatarText}>{chat.receiver_name[0]}</Text>
               </View>

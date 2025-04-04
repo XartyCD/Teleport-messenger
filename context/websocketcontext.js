@@ -16,8 +16,7 @@ export const WebSocketProvider = ({ children }) => {
   const [messages, setMessages] = useState([]);
   const [newMessages, setNewMessages] = useState([]);
 
-  const [users, setUsers] = useState("");
-
+  const [users, setUsers] = useState([]);
 
   // Используем useRef для хранения WebSocket-соединения
   const socketRef = useRef(null);
@@ -27,20 +26,25 @@ export const WebSocketProvider = ({ children }) => {
   ]);
   console.log("Auth", userId)
 
+  useEffect(() => {
+    console.log("Обновление обзоров чата")
+    updateUserChats(messages)
+  }, [messages])
+
 
   useEffect(() => {
     if (userId && !socketRef.current) {
       console.log("Создание WebSocket-соединения...");
 
       // ЛОКАЛКА
-      // socketRef.current = Platform.OS === 'ios' ? io('ws://localhost:9003') : io('ws://10.0.2.2:9003');
+      socketRef.current = Platform.OS === 'ios' ? io('ws://localhost:9003') : io('ws://10.0.2.2:9003');
       // ЛОКАЛКА
 
-      // ДЛЯ СЕРВЕРА
-      socketRef.current = io("wss://xarty.ru", {
-        transports: ["websocket"],
-      });
-      // ДЛЯ СЕРВЕРА
+      // // ДЛЯ СЕРВЕРА
+      // socketRef.current = io("wss://xarty.ru", {
+      //   transports: ["websocket"],
+      // });
+      // // ДЛЯ СЕРВЕРА
 
 
 
@@ -66,17 +70,63 @@ export const WebSocketProvider = ({ children }) => {
 
       socketRef.current.on("allUsers", (data) => {
         console.log("Юзеры:", data);
-        setUsers(data); // Когда получаем пользователей, сохраняем их в состоянии
+        setUsers(data);// Когда получаем пользователей, сохраняем их в состоянии
 
       });
+
+      // Инфа об редактировании сообщений
+      socketRef.current.on("messageEdited", (message) => {
+        const { message_chat_id, receiver_id, content } = message;
+
+        setMessages(prevMessages => {
+          return prevMessages.map(chat => {
+            if (chat.receiver_id === receiver_id) {
+              return {
+                ...chat,
+                messages: chat.messages.map(msg => {
+                  if (msg.message_chat_id === message_chat_id) {
+                    // Если нашли нужное сообщение, обновляем его содержимое
+                    return {
+                      ...msg,
+                      content: content, // новое содержимое сообщения
+                    };
+                  }
+                  return msg; // если не нашли, оставляем сообщение без изменений
+                })
+              };
+            }
+            return chat; // если чат не совпадает, оставляем его без изменений
+          });
+        });
+      });
+
+
+      // Инфа об удалении сообщений
+      socketRef.current.on("messageDeleted", (message) => {
+        const { message_chat_id, receiver_id } = message;
+
+        setMessages(prevMessages => {
+          return prevMessages.map(chat => {
+            if (chat.receiver_id === receiver_id) {
+              return {
+                ...chat,
+                messages: chat.messages.filter(msg => msg.message_chat_id !== message_chat_id)
+              };
+            }
+            return chat;
+          });
+        });
+      });
+
+
 
       // Получение новых сообщений
       socketRef.current.on("getNewMessage", (message) => {
         console.log("Получено новое сообщение:", message);
 
         setMessages((prevMessages) => {
-          // Ищем чат по receiver_name
-          const chatIndex = prevMessages.findIndex(chat => chat.chat_id === message.chat_id);
+          // Ищем чат по receiver_id
+          const chatIndex = prevMessages.findIndex(chat => chat.receiver_id === message.sender_id);
 
           if (chatIndex !== -1) {
             // Чат найден → добавляем новое сообщение в него
@@ -95,14 +145,14 @@ export const WebSocketProvider = ({ children }) => {
                 }  // Сохраняем сообщение без receiver_name
               ]
             };
-            console.log("Обновленный чат:", updatedChats);
             return updatedChats;
           } else {
+
             // Чат не найден → создаем новый
             return [
               ...prevMessages,
               {
-                chat_id: message.chat_id,
+                receiver_id: message.sender_id,
                 receiver_name: message.receiver_name,  // Используем receiver_name
                 messages: [
                   {
@@ -145,6 +195,7 @@ export const WebSocketProvider = ({ children }) => {
   }, [userId]);
 
 
+
   // Функция для запроса сообщений у сервера
   const fetchMessages = () => {
     if (userId && socketRef.current) {
@@ -169,44 +220,44 @@ export const WebSocketProvider = ({ children }) => {
 
 
 
-  // Функция для обновления чатов в userChats для рендера чатов в MainChatsScreen
   const updateUserChats = (messages) => {
-    // Группируем сообщения по chat_id
-    console.log(messages)
     const chats = {};
 
-    // Группируем сообщения по chat_id
+    // Группируем сообщения по receiver_id
     messages.forEach((chat) => {
-      if (!chats[chat.chat_id]) {
-        chats[chat.chat_id] = {
-          receiver_name: chat.receiver_name, // Имя собеседника из данных чата
-          messages: [], // Массив для сообщений чата
-          unreadCount: 0, // Счетчик непрочитанных сообщений
+      const receiverId = chat.receiver_id;
+
+      if (!chats[receiverId]) {
+        chats[receiverId] = {
+          receiver_name: chat.receiver_name, // Имя собеседника
+          messages: [], // Массив сообщений
         };
       }
 
-      // Добавляем все сообщения чата в соответствующий массив
-      chat.messages.forEach((message) => {
-        chats[chat.chat_id].messages.push(message);
-      });
+      // Добавляем сообщения
+      chats[receiverId].messages.push(...chat.messages);
     });
 
-    // Преобразуем chats в массив и сортируем по дате последнего сообщения
+    // Преобразуем объект в массив и сортируем по последнему сообщению
     const sortedChats = Object.keys(chats)
-      .map((chatId) => {
-        const chatMessages = chats[chatId].messages;
+      .map((receiverId) => {
+        const chatMessages = chats[receiverId].messages;
+        if (chatMessages.length === 0) return null; // Пропускаем пустые чаты
+
+
         const lastMessage = chatMessages[chatMessages.length - 1]; // Последнее сообщение
         return {
-          id: Number(chatId),
-          receiver_name: chats[chatId].receiver_name, // Имя собеседника
-          lastMessage: lastMessage.content, // Содержание последнего сообщения
-          lastMessageStatus: lastMessage.status, // Дата последнего сообщения
-          lastMessageDate: lastMessage.date, // Дата последнего сообщения
+          id: Number(receiverId),
+          receiver_name: chats[receiverId].receiver_name,
+          lastMessage: lastMessage.content,
+          lastMessageStatus: lastMessage.status,
+          lastMessageDate: lastMessage.date,
         };
       })
-      .sort((a, b) => new Date(b.lastMessageDate) - new Date(a.lastMessageDate)); // Сортировка по времени
+      .filter(Boolean) // Убираем пустые значения
+      .sort((a, b) => new Date(b.lastMessageDate) - new Date(a.lastMessageDate));
+    console.log("Осторт", sortedChats)
 
-    console.log("Отсортированные чаты:", sortedChats);
 
     // Устанавливаем обновленные чаты в состоянии
     setUserChats(sortedChats);
@@ -215,7 +266,7 @@ export const WebSocketProvider = ({ children }) => {
 
 
   return (
-    <WebSocketContext.Provider value={{ users, userChats, setUserChats, messages, socket: socketRef.current }}>
+    <WebSocketContext.Provider value={{ users, userChats, setUserChats, messages, setMessages, socket: socketRef.current }}>
       {children}
     </WebSocketContext.Provider>
   );

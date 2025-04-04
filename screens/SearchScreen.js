@@ -74,7 +74,7 @@ export default SearchScreen = ({ isVisible, toggleSearchPage }) => {
                   people.user.toLowerCase().startsWith(searchText.toLowerCase())
                 )
                 .map((people) => (
-                  <Pressable key={people.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatName: people.user, chatId: people.id })}>
+                  <Pressable key={people.id} style={styles.chatItem} onPress={() => navigation.navigate("ChatScreen", { chatReceiverId: people.id, chatName: people.user })}>
                     <View style={styles.chatAvatar}>
                       <Text style={styles.avatarText}>{people.user[0]}</Text>
                     </View>

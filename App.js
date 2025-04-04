@@ -9,6 +9,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import 'react-native-gesture-handler';
 
 import * as Font from "expo-font";
+import { StatusBar } from 'expo-status-bar';
+
+
 
 import InitLoadingScreen from "./screens/InitLoadingScreen.js";
 
@@ -75,6 +78,7 @@ function AppContent() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "black" }}>
+      <StatusBar style="light" backgroundColor="black" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isLoading ? (
           <Stack.Screen name="InitLoadingScreen" component={InitLoadingScreen} />

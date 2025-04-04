@@ -5,55 +5,21 @@ const app = express()
 const port = 9000
 const socketPort = 9003
 
-// // ЛОКАЛ 
-// const http = require("http") // http
-// const socketIo = require("socket.io") // sockets
-// // ЛОКАЛ 
+// ЛОКАЛ 
+const http = require("http") // http
+const socketIo = require("socket.io") // sockets
+// ЛОКАЛ 
 
-// // ЛОКАЛ - - - - - 
-// const server = http.createServer(app)
+// ЛОКАЛ - - - - - 
+const server = http.createServer(app)
 
-// // Настраиваем Socket.IO
-// const io = socketIo(server, {
-//   cors: {
-//     origin: "*", // Обеспечиваем доступ с любых источников, важно для работы с клиентом
-//   },
-// })
-
-
-// const pool = mysql.createPool({
-//   connectionLimit: 100, // Устанавливаем лимит соединений
-//   host: "localhost", // Укажи IP-адрес удаленного сервера или домен
-//   user: "root",          // Имя пользователя
-//   password: "", // Пароль пользователя
-//   database: "TeleportBase",  // Имя базы данных
-// });
-// // ЛОКАЛ - - - - - 
-
-
-
-
-// СЕРВЕР
-const https = require("https"); // https connect
-const fs = require("fs"); // чтение SSL сервером
-const { Server } = require("socket.io"); // sockets for connect
-// СЕРВЕР
-
-// ДЛЯ СЕРВЕРА - - - - - - - - -
-
-const server = https.createServer({
-  key: fs.readFileSync("/etc/ssl/xarty.ru/certificate.key"),
-  cert: fs.readFileSync("/etc/ssl/xarty.ru/certificate.crt"),
-  ca: fs.readFileSync("/etc/ssl/xarty.ru/certificate_ca.crt"),
-}, app);
-
-const io = new Server(server, {
+// Настраиваем Socket.IO
+const io = socketIo(server, {
   cors: {
-    origin: "https://xarty.ru",
-    methods: ["GET", "POST"],
-    transports: ["websocket"], // Указываем, что мы будем использовать WebSocket
-  }
-});
+    origin: "*", // Обеспечиваем доступ с любых источников, важно для работы с клиентом
+  },
+})
+
 
 const pool = mysql.createPool({
   connectionLimit: 100, // Устанавливаем лимит соединений
@@ -62,8 +28,42 @@ const pool = mysql.createPool({
   password: "", // Пароль пользователя
   database: "TeleportBase",  // Имя базы данных
 });
+// ЛОКАЛ - - - - - 
 
-// ДЛЯ СЕРВЕРА - - - - - - - - -
+
+
+
+// // СЕРВЕР
+// const https = require("https"); // https connect
+// const fs = require("fs"); // чтение SSL сервером
+// const { Server } = require("socket.io"); // sockets for connect
+// // СЕРВЕР
+
+// // ДЛЯ СЕРВЕРА - - - - - - - - -
+
+// const server = https.createServer({
+//   key: fs.readFileSync("/etc/ssl/xarty.ru/certificate.key"),
+//   cert: fs.readFileSync("/etc/ssl/xarty.ru/certificate.crt"),
+//   ca: fs.readFileSync("/etc/ssl/xarty.ru/certificate_ca.crt"),
+// }, app);
+
+// const io = new Server(server, {
+//   cors: {
+//     origin: "https://xarty.ru",
+//     methods: ["GET", "POST"],
+//     transports: ["websocket"], // Указываем, что мы будем использовать WebSocket
+//   }
+// });
+
+// const pool = mysql.createPool({
+//   connectionLimit: 100, // Устанавливаем лимит соединений
+//   host: "localhost", // Укажи IP-адрес удаленного сервера или домен
+//   user: "root",          // Имя пользователя
+//   password: "", // Пароль пользователя
+//   database: "TeleportBase",  // Имя базы данных
+// });
+
+// // ДЛЯ СЕРВЕРА - - - - - - - - -
 
 
 
@@ -118,33 +118,218 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("sendMessage", (message) => {
-    const { chatId, sender_id, receiver_id, sendingMessage } = message;
 
-    // Теперь вставляем сообщение
-    const insertMessageQuery = `
-      INSERT INTO messagesList (chat_id, message_chat_id, sender_id, receiver_id, content, date, status)
-        SELECT ?, COALESCE(MAX(message_chat_id), 0) + 1, ?, ?, ?, NOW(), 'sent'
-      FROM messagesList WHERE chat_id = ?;
-  `;
+  socket.on("editMessage", (messageInfo) => {
+    const { sender_id, receiver_id, message_chat_id, editedMessage } = messageInfo;
 
-    pool.query(insertMessageQuery, [chatId, sender_id, receiver_id, sendingMessage, chatId], (err) => {
+    // SQL-запрос для получения chat_id
+    const getChatIdQuery = `
+      SELECT chat_id FROM chatList
+      WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+      LIMIT 1;
+    `;
+
+    pool.query(getChatIdQuery, [sender_id, receiver_id, receiver_id, sender_id], (err, results) => {
       if (err) {
-        console.error("Ошибка при сохранении сообщения:", err);
+        console.error("Ошибка при получении chat_id:", err);
         return;
       }
 
-      console.log("Сообщение успешно отправлено!");
+      if (results.length === 0) {
+        console.warn("Чат не найден для удаления сообщения.");
+        return;
+      }
 
-      // Отправляем сообщение получателю через WebSocket
+      const chat_id = results[0].chat_id;
+
+      // Запрос на удаление сообщения
+      const updateMessageQuery = `
+        UPDATE messagesList
+        SET content = ?
+        WHERE chat_id = ? AND message_chat_id = ?;
+      `;
+
+      pool.query(updateMessageQuery, [editedMessage, chat_id, message_chat_id], (editErr, deleteResult) => {
+        if (editErr) {
+          console.error("Ошибка при удалении сообщения:", editErr);
+          return;
+        }
+
+        console.log("Сообщение отредактировано:", message_chat_id);
+        socket.emit("editedResult", {
+          success: true,
+        });
+
+        // Можно также уведомить другого участника чата
+        const receiverSocketId = activeUsers.get(receiver_id);
+
+        io.to(receiverSocketId).emit("messageEdited", {
+          message_chat_id,
+          receiver_id: sender_id,
+          content: editedMessage
+        });
+      });
+    });
+  });
+
+
+  socket.on("deleteMessage", (messageInfo) => {
+    const { sender_id, receiver_id, message_chat_id } = messageInfo;
+
+    // SQL-запрос для получения chat_id
+    const getChatIdQuery = `
+      SELECT chat_id FROM chatList
+      WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+      LIMIT 1;
+    `;
+
+    pool.query(getChatIdQuery, [sender_id, receiver_id, receiver_id, sender_id], (err, results) => {
+      if (err) {
+        console.error("Ошибка при получении chat_id:", err);
+        return;
+      }
+
+      if (results.length === 0) {
+        console.warn("Чат не найден для удаления сообщения.");
+        return;
+      }
+
+      const chat_id = results[0].chat_id;
+
+      // Запрос на удаление сообщения
+      const deleteMessageQuery = `
+        DELETE FROM messagesList
+        WHERE chat_id = ? AND message_chat_id = ?;
+      `;
+
+      pool.query(deleteMessageQuery, [chat_id, message_chat_id], (deleteErr, deleteResult) => {
+        if (deleteErr) {
+          console.error("Ошибка при удалении сообщения:", deleteErr);
+          return;
+        }
+
+        console.log("Сообщение удалено:", message_chat_id);
+        socket.emit("deletedResult", {
+          success: true,
+        });
+
+        // Можно также уведомить другого участника чата
+        const receiverSocketId = activeUsers.get(receiver_id);
+
+        io.to(receiverSocketId).emit("messageDeleted", {
+          message_chat_id,
+          receiver_id: sender_id
+        });
+      });
+    });
+  });
+
+
+  socket.on("sendMessage", (message) => {
+    const { sender_id, receiver_id, sendingMessage } = message;
+    console.log(sender_id, receiver_id)
+
+    // SQL-запрос для получения chat_id
+    const getChatIdQuery = `
+      SELECT chat_id FROM chatList
+      WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+      LIMIT 1;
+    `;
+
+    pool.query(getChatIdQuery, [sender_id, receiver_id, receiver_id, sender_id], (err, results) => {
+      if (err) {
+        console.error("Ошибка при получении chat_id:", err);
+        return;
+      }
+
+      if (results.length === 0) {
+        // Чат не найден, создаем новый и сразу добавляем сообщение
+        console.log("Чат не найден, создаем новый...");
+
+        // 1. Получаем имя отправителя
+        const getSenderNameQuery = `SELECT user FROM users WHERE id = ?`;
+
+        pool.query(getSenderNameQuery, [sender_id], (err, senderResults) => {
+          if (err) {
+            console.error("Ошибка при получении имени отправителя:", err);
+            return;
+          }
+
+          if (senderResults.length === 0) {
+            console.error("Отправитель не найден.");
+            return;
+          }
+
+          const senderName = senderResults[0].user;
+
+          // 2. Создаем новый чат
+          const createChatQuery = `
+            INSERT INTO chatList (messages, sender_id, receiver_id, created_at)
+            VALUES (0, ?, ?, NOW());
+          `;
+
+          pool.query(createChatQuery, [sender_id, receiver_id], (err, result) => {
+            if (err) {
+              console.error("Ошибка при создании чата:", err);
+              return;
+            }
+
+            const newChatId = result.insertId; // Получаем chat_id нового чата
+            console.log("Создан новый чат с chat_id:", newChatId);
+
+            // 3. Вставляем первое сообщение
+            insertMessage(newChatId, senderName);
+          });
+        });
+      } else {
+        const chatId = results[0].chat_id;
+        insertMessage(chatId);
+      }
+    });
+
+
+    function insertMessage(chatId, senderName = null) {
+      const insertMessageQuery = `
+        INSERT INTO messagesList (chat_id, message_chat_id, sender_id, receiver_id, content, date, status)
+        SELECT ?, IFNULL(MAX(message_chat_id), 0) + 1, ?, ?, ?, NOW(), 'sent'
+        FROM messagesList WHERE chat_id = ?;
+      `;
+
+      pool.query(insertMessageQuery, [chatId, sender_id, receiver_id, sendingMessage, chatId], (err, result) => {
+        if (err) {
+          console.error("Ошибка при сохранении сообщения:", err);
+          return;
+        }
+
+        // Получаем сгенерированный message_chat_id
+        const getMessageIdQuery = `
+          SELECT MAX(message_chat_id) AS message_chat_id
+          FROM messagesList WHERE chat_id = ?;
+        `;
+
+        pool.query(getMessageIdQuery, [chatId], (err, results) => {
+          if (err || results.length === 0) {
+            console.error("Ошибка при получении message_chat_id:", err);
+            return;
+          }
+
+          const message_chat_id = results[0].message_chat_id;
+          console.log("Сообщение успешно отправлено в чат", chatId, "с ID", message_chat_id);
+
+          sendToReceiver(senderName, message_chat_id);
+        });
+      });
+    }
+
+    function sendToReceiver(senderName = null, message_chat_id) {
       const receiverSocketId = activeUsers.get(receiver_id);
       if (!receiverSocketId) {
         console.log("Получатель не в сети.");
         return;
       }
 
-      io.to(receiverSocketId).emit("getNewMessage", {
-        chat_id: chatId,
+      const newMessage = {
+        message_chat_id,
         sender_id,
         receiver_id,
         content: sendingMessage,
@@ -157,11 +342,17 @@ io.on("connection", (socket) => {
           second: "2-digit",
         }),
         status: "sent",
-      });
-    });
-  })
+      };
 
+      // Добавляем receiver_name только если senderName не null
+      if (senderName) {
+        newMessage.receiver_name = senderName;
+      }
 
+      console.log("Отправка через WebSocket:", newMessage);
+      io.to(receiverSocketId).emit("getNewMessage", newMessage);
+    }
+  });
 
 
 
@@ -203,11 +394,13 @@ io.on("connection", (socket) => {
 
           // Определяем имя собеседника
           const companionName = user_id === sender_id ? receiver_name : sender_name;
+          const companionId = user_id === sender_id ? receiver_id : sender_id;
 
           // Если чат ещё не добавлен в список, создаём его
           if (!acc[chat_id]) {
             acc[chat_id] = {
               chat_id,
+              receiver_id: companionId,
               receiver_name: companionName,
               messages: [],
             };

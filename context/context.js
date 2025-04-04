@@ -11,8 +11,8 @@ export const AppContext = createContext();
 export const AppProvider = ({ children }) => {
   const appVersion = "0.0.1"
 
-  const CONNECTURL = "https://xarty.ru/api" // СЕРВЕР
-  // const CONNECTURL = Platform.OS === 'ios' ? 'http://localhost:9000/api' : 'http://10.0.2.2:9000/api';  // ЛОКАЛКА
+  // const CONNECTURL = "https://xarty.ru/api" // СЕРВЕР
+  const CONNECTURL = Platform.OS === 'ios' ? 'http://localhost:9000/api' : 'http://10.0.2.2:9000/api';  // ЛОКАЛКА
 
   const [user, setUser] = useState(null);
   const [userId, setUserId] = useState(null);
